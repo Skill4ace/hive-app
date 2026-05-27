@@ -141,7 +141,7 @@ type ListingCardProps = {
   heroHeight?: number;
 };
 
-export function ListingCard({ listing, variant = 'grid', onPress, saved, heroHeight = 350 }: ListingCardProps) {
+export function ListingCard({ listing, variant = 'grid', onPress, heroHeight = 350 }: ListingCardProps) {
   const theme = useTheme();
   const isHero = variant === 'hero';
   const isRow = variant === 'row';
@@ -201,15 +201,6 @@ export function ListingCard({ listing, variant = 'grid', onPress, saved, heroHei
           height={isHero ? heroHeight : 154}
           overlay={isHero}
         />
-        <View style={styles.saveButton}>
-          <IconButton
-            icon={hiveSymbol({ ios: 'heart.fill', android: 'favorite', web: 'favorite' })}
-            label={saved ? 'Saved' : 'Save listing'}
-            selected={saved}
-            tone="accent"
-            size="sm"
-          />
-        </View>
         {isHero ? (
           <View style={styles.heroInfo}>
             <ThemedText type="subtitle" style={styles.heroTitleText}>
@@ -248,27 +239,86 @@ export function ListingCard({ listing, variant = 'grid', onPress, saved, heroHei
   );
 }
 
+type SwipeListingCardProps = {
+  listing: Listing;
+  height: number;
+  onPress?: () => void;
+};
+
+export function SwipeListingCard({ listing, height, onPress }: SwipeListingCardProps) {
+  const theme = useTheme();
+  const chips = [
+    `${listing.beds} Beds`,
+    `${listing.baths} Bath${listing.baths === 1 ? '' : 's'}`,
+    ...listing.amenities.slice(0, 2),
+  ];
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`Open ${listing.title}`}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.swipeCard,
+        {
+          height,
+          backgroundColor: theme.surface,
+          shadowColor: theme.shadow,
+          opacity: pressed ? 0.92 : 1,
+        },
+      ]}>
+      <Image source={{ uri: listing.image }} style={StyleSheet.absoluteFill} contentFit="cover" transition={260} />
+      <View style={[styles.swipeScrim, { backgroundColor: 'rgba(19, 8, 23, 0.28)' }]} />
+      <View style={styles.swipeBottomShade} />
+
+      <View style={styles.swipeInfo}>
+        <ThemedText type="title" style={styles.swipeTitle}>
+          {listing.title}
+        </ThemedText>
+        <View style={styles.swipePriceLine}>
+          <PriceLabel price={listing.price} inverted />
+          <ThemedText type="smallBold" style={styles.swipeLocation}>
+            {listing.location}
+          </ThemedText>
+        </View>
+        <View style={styles.swipeChips}>
+          {chips.map((chip) => (
+            <View key={chip} style={styles.swipeChip}>
+              <ThemedText type="caption" style={styles.swipeChipText}>
+                {chip}
+              </ThemedText>
+            </View>
+          ))}
+        </View>
+        <View style={styles.swipeMatchRow}>
+          <MatchBadge value={listing.match} />
+        </View>
+      </View>
+    </Pressable>
+  );
+}
+
 type SwipeActionButtonProps = {
-  action: 'pass' | 'star' | 'like';
+  action: 'undo' | 'pass' | 'like';
   onPress?: () => void;
 };
 
 export function SwipeActionButton({ action, onPress }: SwipeActionButtonProps) {
   const config = {
+    undo: {
+      icon: hiveSymbol({ ios: 'arrow.counterclockwise', android: 'refresh', web: 'refresh' }),
+      label: 'Undo',
+      tone: 'neutral' as const,
+    },
     pass: {
       icon: hiveSymbol({ ios: 'xmark', android: 'close', web: 'close' }),
       label: 'Pass',
       tone: 'neutral' as const,
     },
-    star: {
-      icon: hiveSymbol({ ios: 'star.fill', android: 'star', web: 'star' }),
-      label: 'Star',
-      tone: 'gold' as const,
-    },
     like: {
       icon: hiveSymbol({ ios: 'heart.fill', android: 'favorite', web: 'favorite' }),
       label: 'Like',
-      tone: 'accent' as const,
+      tone: 'primary' as const,
     },
   }[action];
 
@@ -393,13 +443,60 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     ...Shadows.card,
   },
+  swipeCard: {
+    borderRadius: 34,
+    overflow: 'hidden',
+    ...Shadows.floating,
+  },
+  swipeScrim: {
+    ...StyleSheet.absoluteFill,
+  },
+  swipeBottomShade: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: '46%',
+    backgroundColor: 'rgba(18, 8, 22, 0.42)',
+  },
+  swipeInfo: {
+    position: 'absolute',
+    left: Spacing.three,
+    right: Spacing.three,
+    bottom: Spacing.four,
+    gap: Spacing.one,
+  },
+  swipeTitle: {
+    color: '#FFFFFF',
+  },
+  swipePriceLine: {
+    gap: 1,
+  },
+  swipeLocation: {
+    color: 'rgba(255,255,255,0.9)',
+  },
+  swipeChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.one,
+    paddingTop: Spacing.one,
+  },
+  swipeChip: {
+    minHeight: 30,
+    borderRadius: Radius.pill,
+    paddingHorizontal: Spacing.two,
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.44)',
+  },
+  swipeChipText: {
+    color: '#FFFFFF',
+  },
+  swipeMatchRow: {
+    alignItems: 'flex-start',
+    paddingTop: Spacing.one,
+  },
   heroCard: {
     borderRadius: Radius.xxl,
-  },
-  saveButton: {
-    position: 'absolute',
-    top: Spacing.two,
-    right: Spacing.two,
   },
   heroInfo: {
     position: 'absolute',

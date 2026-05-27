@@ -24,6 +24,79 @@ export function AppTopBar({ title, left, right }: AppTopBarProps) {
   );
 }
 
+type LocationFilterBarProps = {
+  location: string;
+  activeFilters?: number;
+  onLocationPress?: () => void;
+  onFilterPress?: () => void;
+};
+
+export function LocationFilterBar({
+  location,
+  activeFilters,
+  onLocationPress,
+  onFilterPress,
+}: LocationFilterBarProps) {
+  const theme = useTheme();
+
+  return (
+    <View style={styles.locationBar}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Change location"
+        onPress={onLocationPress}
+        style={({ pressed }) => [
+          styles.locationButton,
+          {
+            backgroundColor: theme.surface,
+            borderColor: theme.border,
+            opacity: pressed ? 0.74 : 1,
+          },
+        ]}>
+        <IconGlyph
+          name={{ ios: 'mappin.and.ellipse', android: 'location_on', web: 'location_on' }}
+          color={theme.primary}
+          size={18}
+        />
+        <ThemedText type="smallBold" numberOfLines={1} style={styles.locationText}>
+          {location}
+        </ThemedText>
+        <IconGlyph
+          name={{ ios: 'chevron.down', android: 'keyboard_arrow_down', web: 'keyboard_arrow_down' }}
+          color={theme.textSecondary}
+          size={16}
+        />
+      </Pressable>
+
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Open filters"
+        onPress={onFilterPress}
+        style={({ pressed }) => [
+          styles.filterButton,
+          {
+            backgroundColor: theme.surface,
+            borderColor: theme.border,
+            opacity: pressed ? 0.74 : 1,
+          },
+        ]}>
+        <IconGlyph
+          name={{ ios: 'slider.horizontal.3', android: 'tune', web: 'tune' }}
+          color={theme.text}
+          size={21}
+        />
+        {activeFilters ? (
+          <View style={[styles.filterBadge, { backgroundColor: theme.primary }]}>
+            <ThemedText type="caption" style={{ color: theme.primaryText }}>
+              {activeFilters}
+            </ThemedText>
+          </View>
+        ) : null}
+      </Pressable>
+    </View>
+  );
+}
+
 type AppHeroProps = {
   eyebrow?: string;
   title: string;
@@ -198,6 +271,44 @@ const styles = StyleSheet.create({
   },
   topTitleLeading: {
     textAlign: 'left',
+  },
+  locationBar: {
+    minHeight: 50,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  locationButton: {
+    flex: 1,
+    minHeight: 46,
+    borderRadius: Radius.pill,
+    borderWidth: 1,
+    paddingHorizontal: Spacing.three,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  locationText: {
+    flex: 1,
+  },
+  filterButton: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterBadge: {
+    position: 'absolute',
+    top: -3,
+    right: -3,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
   },
   hero: {
     borderWidth: 1,

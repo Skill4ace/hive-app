@@ -4,16 +4,15 @@ import { StyleSheet, View } from 'react-native';
 
 import { AppTopBar } from '@/components/hive/app-shell';
 import { IconButton, Screen, SegmentedControl, hiveSymbol } from '@/components/hive/primitives';
-import { ListingCard } from '@/components/hive/listing';
+import { GroupConsensusRow, ListingCard } from '@/components/hive/listing';
 import { Spacing } from '@/constants/theme';
-import { demoListings } from '@/data/module-one-demo';
+import { demoListings, demoPeople } from '@/data/module-one-demo';
 
-type SavedTab = 'all' | 'matched' | 'viewed';
+type SavedTab = 'all' | 'matched';
 
 const options: { label: string; value: SavedTab }[] = [
   { label: 'All', value: 'all' },
   { label: 'Matched', value: 'matched' },
-  { label: 'Viewed', value: 'viewed' },
 ];
 
 export default function SavedScreen() {
@@ -33,17 +32,31 @@ export default function SavedScreen() {
       />
       <SegmentedControl options={options} value={tab} onChange={setTab} />
 
-      <View style={styles.grid}>
-        {demoListings.map((listing, index) => (
-          <View key={listing.id} style={styles.gridItem}>
-            <ListingCard
+      {tab === 'all' ? (
+        <View style={styles.grid}>
+          {demoListings.map((listing, index) => (
+            <View key={listing.id} style={styles.gridItem}>
+              <ListingCard
+                listing={listing}
+                saved={index < 3}
+                onPress={() => router.push({ pathname: '/listing/[id]', params: { id: listing.id } })}
+              />
+            </View>
+          ))}
+        </View>
+      ) : (
+        <View style={styles.matchedList}>
+          {demoListings.map((listing, index) => (
+            <GroupConsensusRow
+              key={listing.id}
               listing={listing}
-              saved={index < 3}
-              onPress={() => router.push({ pathname: '/listing/[id]', params: { id: listing.id } })}
+              likes={index % 2 === 0 ? '3/3' : '2/3'}
+              status={index % 2 === 0 ? 'matched' : 'discussing'}
+              people={demoPeople}
             />
-          </View>
-        ))}
-      </View>
+          ))}
+        </View>
+      )}
     </Screen>
   );
 }
@@ -64,5 +77,8 @@ const styles = StyleSheet.create({
     flexBasis: '47%',
     flexGrow: 1,
     minWidth: 164,
+  },
+  matchedList: {
+    gap: Spacing.two,
   },
 });

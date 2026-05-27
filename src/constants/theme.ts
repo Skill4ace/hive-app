@@ -98,22 +98,25 @@ export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
 
 export const Fonts = Platform.select({
   ios: {
-    /** iOS `UIFontDescriptorSystemDesignDefault` */
-    sans: 'system-ui',
-    /** iOS `UIFontDescriptorSystemDesignSerif` */
-    serif: 'ui-serif',
-    /** iOS `UIFontDescriptorSystemDesignRounded` */
-    rounded: 'ui-rounded',
-    /** iOS `UIFontDescriptorSystemDesignMonospaced` */
+    sans: 'Avenir Next',
+    serif: 'Georgia',
+    rounded: 'Avenir Next',
     mono: 'ui-monospace',
-    display: 'ui-serif',
+    display: 'Avenir Next',
+  },
+  android: {
+    sans: 'sans-serif',
+    serif: 'serif',
+    rounded: 'sans-serif-medium',
+    mono: 'monospace',
+    display: 'sans-serif-medium',
   },
   default: {
-    sans: 'normal',
+    sans: 'sans-serif',
     serif: 'serif',
-    rounded: 'normal',
+    rounded: 'sans-serif',
     mono: 'monospace',
-    display: 'serif',
+    display: 'sans-serif',
   },
   web: {
     sans: 'var(--font-display)',

@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
-import { AppSection, AppTopBar, SettingRow, SurfacePanel } from '@/components/hive/app-shell';
+import { AppSection, AppTopBar, SurfacePanel } from '@/components/hive/app-shell';
 import { Button, IconButton, PreferenceChip, Screen, hiveSymbol } from '@/components/hive/primitives';
 import { PreferenceSummary } from '@/components/hive/listing';
 import { Spacing } from '@/constants/theme';
@@ -40,28 +40,9 @@ export default function ProfileScreen() {
         </SurfacePanel>
       </AppSection>
 
-      <AppSection title="Settings">
-        <SurfacePanel>
-          <SettingRow
-            icon={hiveSymbol({ ios: 'bell.fill', android: 'notifications', web: 'notifications' })}
-            title="Notifications"
-            subtitle="Group matches and invite reminders"
-            onPress={() => router.push('/notifications')}
-          />
-          <SettingRow
-            icon={hiveSymbol({ ios: 'person.crop.circle.fill', android: 'person', web: 'person' })}
-            title="Account"
-            subtitle="Google sign-in, email, account deletion"
-            onPress={() => router.push('/account')}
-          />
-          <SettingRow
-            icon={hiveSymbol({ ios: 'lock.shield.fill', android: 'shield', web: 'shield' })}
-            title="Privacy"
-            subtitle="Profile visibility and group invite access"
-            onPress={() => router.push('/privacy')}
-          />
-        </SurfacePanel>
-      </AppSection>
+      <Button fullWidth variant="secondary" onPress={() => router.push('/account')}>
+        Account and privacy
+      </Button>
     </Screen>
   );
 }

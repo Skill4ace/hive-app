@@ -1,6 +1,7 @@
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
+import { useState } from 'react';
+import { NativeScrollEvent, NativeSyntheticEvent, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { AppSection, SettingRow, SurfacePanel } from '@/components/hive/app-shell';
 import { Button, IconButton, Pill, PreferenceChip, Screen, hiveSymbol } from '@/components/hive/primitives';
@@ -11,10 +12,10 @@ import { demoListings, getListingById } from '@/data/module-one-demo';
 import { useTheme } from '@/hooks/use-theme';
 
 const propertyFacts = [
-  { label: 'Bedrooms', value: '2' },
-  { label: 'Bathrooms', value: '1' },
+  { label: 'Beds', value: '2' },
+  { label: 'Baths', value: '1' },
   { label: 'Lease', value: '12 mo' },
-  { label: 'Available', value: 'Aug 1' },
+  { label: 'Move-in', value: 'Aug 1' },
 ];
 
 const amenities = ['In-unit W/D', 'Dishwasher', 'Pet friendly', 'Natural light', 'Near transit', 'Shared roof'];
@@ -23,47 +24,74 @@ export default function ListingDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams();
   const theme = useTheme();
+  const { width } = useWindowDimensions();
+  const [photoIndex, setPhotoIndex] = useState(0);
   const listing = getListingById(id);
   const gallery = [listing, ...demoListings.filter((item) => item.id !== listing.id)].slice(0, 4);
+  const contentWidth = Math.min(width - Spacing.three * 2, 620);
+
+  const handlePhotoChange = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    setPhotoIndex(Math.round(event.nativeEvent.contentOffset.x / contentWidth));
+  };
 
   return (
     <Screen contentStyle={styles.screen}>
-      <View style={[styles.hero, { backgroundColor: theme.surface, borderColor: theme.border, shadowColor: theme.shadow }]}>
-        <Image source={{ uri: listing.image }} style={styles.heroImage} contentFit="cover" transition={240} />
-        <View style={[styles.heroScrim, { backgroundColor: theme.imageScrim }]} />
-        <View style={styles.topActions}>
+      <View style={[styles.galleryShell, { width: contentWidth, backgroundColor: theme.surface, shadowColor: theme.shadow }]}>
+        <ScrollView
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          decelerationRate="fast"
+          onMomentumScrollEnd={handlePhotoChange}
+          style={styles.galleryScroll}>
+          {gallery.map((item) => (
+            <Image
+              key={item.id}
+              source={{ uri: item.image }}
+              style={[styles.galleryImage, { width: contentWidth }]}
+              contentFit="cover"
+              transition={240}
+            />
+          ))}
+        </ScrollView>
+        <View style={styles.galleryTop}>
           <IconButton
             icon={hiveSymbol({ ios: 'chevron.left', android: 'arrow_back', web: 'arrow_back' })}
             label="Go back"
             onPress={() => router.back()}
           />
-          <IconButton
-            icon={hiveSymbol({ ios: 'heart.fill', android: 'favorite', web: 'favorite' })}
-            label="Save"
-            selected
-            tone="accent"
-          />
+          <Pill tone="neutral">
+            {photoIndex + 1}/{gallery.length}
+          </Pill>
         </View>
-        <View style={styles.heroCopy}>
-          <ThemedText type="title" style={styles.heroTitle}>
-            {listing.title}
-          </ThemedText>
-          <PriceLabel price={listing.price} inverted />
-          <ThemedText type="smallBold" style={styles.whiteText}>
-            {listing.location}
-          </ThemedText>
-          <ListingMetaRow beds={listing.beds} baths={listing.baths} amenities={listing.amenities} inverted />
-          <View style={styles.heroBadges}>
-            <MatchBadge value={listing.match} />
-            <Pill tone="success">Available Aug 1</Pill>
-          </View>
+        <View style={styles.galleryDots}>
+          {gallery.map((item, index) => (
+            <View
+              key={item.id}
+              style={[
+                styles.dot,
+                {
+                  width: index === photoIndex ? 18 : 6,
+                  backgroundColor: index === photoIndex ? '#FFFFFF' : 'rgba(255,255,255,0.52)',
+                },
+              ]}
+            />
+          ))}
         </View>
       </View>
 
-      <View style={styles.gallery}>
-        {gallery.map((item) => (
-          <Image key={item.id} source={{ uri: item.image }} style={styles.galleryImage} contentFit="cover" />
-        ))}
+      <View style={[styles.summary, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+        <View style={styles.summaryTop}>
+          <View style={styles.summaryCopy}>
+            <ThemedText type="title">{listing.title}</ThemedText>
+            <PriceLabel price={listing.price} />
+            <ThemedText type="small" themeColor="textSecondary">
+              {listing.location}
+            </ThemedText>
+          </View>
+          <MatchBadge value={listing.match} compact />
+        </View>
+        <ListingMetaRow beds={listing.beds} baths={listing.baths} amenities={listing.amenities} />
       </View>
 
       <AppSection title="Property facts">
@@ -104,14 +132,14 @@ export default function ListingDetailScreen() {
         <SurfacePanel>
           <SettingRow
             icon={hiveSymbol({ ios: 'dollarsign.circle.fill', android: 'attach_money', web: 'attach_money' })}
-            title="Estimated rent"
-            subtitle="Per person, based on your group"
+            title="Rent"
+            subtitle="Estimated per person"
             value={`${listing.price}/mo`}
           />
           <SettingRow
             icon={hiveSymbol({ ios: 'bolt.fill', android: 'bolt', web: 'bolt' })}
             title="Utilities"
-            subtitle="Estimated electricity, gas, internet"
+            subtitle="Electricity, gas, internet"
             value="$135"
           />
           <SettingRow
@@ -163,54 +191,56 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     paddingBottom: Spacing.six,
   },
-  hero: {
-    height: 420,
-    borderWidth: 1,
+  galleryShell: {
+    height: 338,
+    alignSelf: 'center',
     borderRadius: Radius.xxl,
     overflow: 'hidden',
     ...Shadows.card,
   },
-  heroImage: {
-    ...StyleSheet.absoluteFill,
+  galleryScroll: {
+    flex: 1,
   },
-  heroScrim: {
-    ...StyleSheet.absoluteFill,
+  galleryImage: {
+    height: 338,
   },
-  topActions: {
+  galleryTop: {
     position: 'absolute',
     left: Spacing.three,
     right: Spacing.three,
     top: Spacing.three,
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
   },
-  heroCopy: {
+  galleryDots: {
     position: 'absolute',
-    left: Spacing.three,
-    right: Spacing.three,
+    left: 0,
+    right: 0,
     bottom: Spacing.three,
-    gap: Spacing.one,
-  },
-  heroTitle: {
-    color: '#FFFFFF',
-  },
-  whiteText: {
-    color: '#FFFFFF',
-  },
-  heroBadges: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.two,
-    paddingTop: Spacing.one,
+    justifyContent: 'center',
+    gap: 5,
   },
-  gallery: {
+  dot: {
+    height: 6,
+    borderRadius: Radius.pill,
+  },
+  summary: {
+    borderWidth: 1,
+    borderRadius: Radius.xxl,
+    padding: Spacing.three,
+    gap: Spacing.three,
+  },
+  summaryTop: {
     flexDirection: 'row',
-    gap: Spacing.two,
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: Spacing.three,
   },
-  galleryImage: {
+  summaryCopy: {
     flex: 1,
-    height: 82,
-    borderRadius: Radius.lg,
+    gap: 3,
   },
   factGrid: {
     flexDirection: 'row',
@@ -218,9 +248,9 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   factTile: {
-    flexBasis: '47%',
-    flexGrow: 1,
-    minHeight: 82,
+    flex: 1,
+    minWidth: 128,
+    minHeight: 78,
     borderRadius: Radius.lg,
     borderWidth: 1,
     padding: Spacing.three,
