@@ -10,21 +10,39 @@ export default function AppTabs() {
   return (
     <NativeTabs
       backgroundColor={colors.background}
-      indicatorColor={colors.backgroundElement}
-      labelStyle={{ selected: { color: colors.text } }}>
-      <NativeTabs.Trigger name="index">
-        <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
+      indicatorColor={colors.primarySoft}
+      iconColor={colors.textTertiary}
+      labelStyle={{ selected: { color: colors.primary }, color: colors.textSecondary }}>
+      <NativeTabs.Trigger name="discover">
+        <NativeTabs.Trigger.Label>Discover</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon
-          src={require('@/assets/images/tabIcons/home.png')}
-          renderingMode="template"
+          sf={{ default: 'magnifyingglass', selected: 'sparkle.magnifyingglass' }}
+          md={{ default: 'travel_explore', selected: 'travel_explore' }}
         />
       </NativeTabs.Trigger>
 
-      <NativeTabs.Trigger name="explore">
-        <NativeTabs.Trigger.Label>Explore</NativeTabs.Trigger.Label>
+      <NativeTabs.Trigger name="saved">
+        <NativeTabs.Trigger.Label>Saved</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon
-          src={require('@/assets/images/tabIcons/explore.png')}
-          renderingMode="template"
+          sf={{ default: 'heart', selected: 'heart.fill' }}
+          md={{ default: 'favorite_border', selected: 'favorite' }}
+        />
+      </NativeTabs.Trigger>
+
+      <NativeTabs.Trigger name="groups">
+        <NativeTabs.Trigger.Label>Groups</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon
+          sf={{ default: 'person.2', selected: 'person.2.fill' }}
+          md={{ default: 'groups', selected: 'groups' }}
+        />
+        <NativeTabs.Trigger.Badge selectedBackgroundColor={colors.primary}>4</NativeTabs.Trigger.Badge>
+      </NativeTabs.Trigger>
+
+      <NativeTabs.Trigger name="profile">
+        <NativeTabs.Trigger.Label>Profile</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon
+          sf={{ default: 'person.crop.circle', selected: 'person.crop.circle.fill' }}
+          md={{ default: 'person_outline', selected: 'person' }}
         />
       </NativeTabs.Trigger>
     </NativeTabs>
