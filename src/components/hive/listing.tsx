@@ -260,9 +260,10 @@ type SwipeListingCardProps = {
   listing: Listing;
   height: number;
   onPress?: () => void;
+  onImageLoad?: () => void;
 };
 
-export function SwipeListingCard({ listing, height, onPress }: SwipeListingCardProps) {
+export function SwipeListingCard({ listing, height, onPress, onImageLoad }: SwipeListingCardProps) {
   const theme = useTheme();
   const chips = [
     `${listing.beds} Beds`,
@@ -284,7 +285,12 @@ export function SwipeListingCard({ listing, height, onPress }: SwipeListingCardP
           opacity: pressed ? 0.92 : 1,
         },
       ]}>
-      <Image source={{ uri: listing.image }} style={StyleSheet.absoluteFill} contentFit="cover" />
+      <Image
+        source={{ uri: listing.image }}
+        style={StyleSheet.absoluteFill}
+        contentFit="cover"
+        onLoad={onImageLoad}
+      />
       <View style={[styles.swipeScrim, { backgroundColor: 'rgba(19, 8, 23, 0.28)' }]} />
       <View style={styles.swipeBottomShade} />
       <View style={styles.campusPill}>

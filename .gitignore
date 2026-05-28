@@ -31,7 +31,12 @@ yarn-error.*
 *.pem
 
 # local env files
+.env
 .env*.local
+
+# scraper output
+scrape-output/
+supabase/.temp/
 
 # typescript
 *.tsbuildinfo

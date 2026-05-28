@@ -30,6 +30,7 @@ export default function DiscoverScreen() {
   const translateY = useSharedValue(0);
   const dragX = useSharedValue(0);
   const coverOpacity = useSharedValue(0);
+  const revealPending = useSharedValue(0);
   const nextIndex = (activeIndex + 1) % demoListings.length;
   const featured = demoListings[activeIndex];
   const nextListing = demoListings[nextIndex];
@@ -42,6 +43,7 @@ export default function DiscoverScreen() {
     translateY.value = 0;
     dragX.value = 0;
     coverOpacity.value = 0;
+    revealPending.value = 0;
   };
 
   const resetDeckFromIndex = (index: number) => {
@@ -78,10 +80,24 @@ export default function DiscoverScreen() {
     setIsTransitioning(false);
   };
 
+  const revealCover = () => {
+    coverOpacity.value = withTiming(0, { duration: 110 }, (finished) => {
+      if (finished) {
+        runOnJS(finishTransition)();
+      }
+    });
+  };
+
   const finishSwipe = () => {
     const promotedIndex = nextIndex;
 
+    // Raise the opaque cover (showing the promoted listing) on top of the deck
+    // before anything reshuffles, so the index swap underneath is never visible.
+    // The active card keeps showing its old image until the promoted one decodes,
+    // so we only lift the cover once that image has actually loaded — never
+    // exposing a stale frame or a transparent half-loaded card.
     coverOpacity.value = 1;
+    revealPending.value = 1;
     setCoverIndex(promotedIndex);
     setIsTransitioning(true);
     setHistory((previous) => [...previous, activeIndex]);
@@ -90,10 +106,29 @@ export default function DiscoverScreen() {
     translateY.value = 0;
     dragX.value = 0;
 
+    // Safety net: if onLoad never fires (cache hit edge cases, load error),
+    // reveal anyway so the deck can never get stuck behind the cover.
     setTimeout(() => {
-      coverOpacity.value = withTiming(0, { duration: 90 });
-      setTimeout(finishTransition, 100);
-    }, 80);
+      if (revealPending.value === 1) {
+        revealPending.value = 0;
+        revealCover();
+      }
+    }, 450);
+  };
+
+  // Fired by the active card's image once the promoted listing has decoded and
+  // is on screen under the cover. That is the safe moment to fade the cover.
+  const handleActiveImageLoad = () => {
+    if (revealPending.value !== 1) {
+      return;
+    }
+
+    revealPending.value = 0;
+    revealCover();
+  };
+
+  const openDetail = () => {
+    router.push({ pathname: '/listing/[id]', params: { id: featured.id } });
   };
 
   const animateDecision = (direction: 1 | -1) => {
@@ -144,6 +179,20 @@ export default function DiscoverScreen() {
         }
       });
     });
+
+  // A discrete tap opens the listing detail. Composing it with the pan via
+  // Exclusive means the tap is only recognised when the pan never activates,
+  // so swiping moves to the next card without ever opening the detail view.
+  const tapGesture = Gesture.Tap()
+    .enabled(!isTransitioning)
+    .maxDistance(12)
+    .onEnd((_event, success) => {
+      if (success) {
+        runOnJS(openDetail)();
+      }
+    });
+
+  const cardGesture = Gesture.Exclusive(panGesture, tapGesture);
 
   const activeCardStyle = useAnimatedStyle(() => {
     const rotate = interpolate(translateX.value, [-width, 0, width], [-12, 0, 12], Extrapolation.CLAMP);
@@ -203,13 +252,9 @@ export default function DiscoverScreen() {
             <SwipeListingCard listing={nextListing} height={cardHeight} />
           </Animated.View>
 
-          <GestureDetector gesture={panGesture}>
+          <GestureDetector gesture={cardGesture}>
             <Animated.View style={[styles.cardSlot, activeCardStyle]}>
-              <SwipeListingCard
-                listing={featured}
-                height={cardHeight}
-                onPress={() => router.push({ pathname: '/listing/[id]', params: { id: featured.id } })}
-              />
+              <SwipeListingCard listing={featured} height={cardHeight} onImageLoad={handleActiveImageLoad} />
               <Animated.View style={[styles.decisionBadge, styles.passBadge, passBadgeStyle]}>
                 <ThemedText type="sectionTitle" style={styles.passText}>
                   Skip
