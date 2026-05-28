@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
 
-import { LocationFilterBar } from '@/components/hive/app-shell';
+import { AppTopBar, LocationFilterBar } from '@/components/hive/app-shell';
 import { Screen } from '@/components/hive/primitives';
 import { SwipeActionButton, SwipeListingCard } from '@/components/hive/listing';
 import { Spacing } from '@/constants/theme';
@@ -11,11 +11,12 @@ export default function DiscoverScreen() {
   const router = useRouter();
   const { height } = useWindowDimensions();
   const featured = demoListings[0];
-  const cardHeight = Math.min(535, Math.max(410, height * 0.56));
+  const cardHeight = Math.min(585, Math.max(445, height * 0.6));
 
   return (
     <Screen scroll={false} contentStyle={styles.screen}>
-      <LocationFilterBar location="New York, NY" activeFilters={2} />
+      <AppTopBar title="Discover" />
+      <LocationFilterBar location="UCLA" activeFilters={2} />
 
       <View style={styles.deck}>
         <SwipeListingCard
@@ -39,16 +40,15 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 560,
     alignSelf: 'center',
-    paddingBottom: 92,
-    gap: Spacing.one,
+    paddingBottom: 16,
+    gap: Spacing.two,
   },
   deck: {
     flex: 1,
     justifyContent: 'flex-start',
-    paddingTop: Spacing.one,
   },
   swipeControls: {
-    marginTop: -22,
+    marginTop: Spacing.three,
     zIndex: 2,
     flexDirection: 'row',
     justifyContent: 'center',

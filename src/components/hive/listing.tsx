@@ -270,6 +270,16 @@ export function SwipeListingCard({ listing, height, onPress }: SwipeListingCardP
       <Image source={{ uri: listing.image }} style={StyleSheet.absoluteFill} contentFit="cover" transition={260} />
       <View style={[styles.swipeScrim, { backgroundColor: 'rgba(19, 8, 23, 0.28)' }]} />
       <View style={styles.swipeBottomShade} />
+      <View style={styles.campusPill}>
+        <IconGlyph
+          name={hiveSymbol({ ios: 'figure.walk', android: 'directions_walk', web: 'directions_walk' })}
+          color="#FFFFFF"
+          size={14}
+        />
+        <ThemedText type="caption" style={styles.campusPillText}>
+          0.8 mi to campus
+        </ThemedText>
+      </View>
 
       <View style={styles.swipeInfo}>
         <ThemedText type="title" style={styles.swipeTitle}>
@@ -289,9 +299,6 @@ export function SwipeListingCard({ listing, height, onPress }: SwipeListingCardP
               </ThemedText>
             </View>
           ))}
-        </View>
-        <View style={styles.swipeMatchRow}>
-          <MatchBadge value={listing.match} />
         </View>
       </View>
     </Pressable>
@@ -456,14 +463,29 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    height: '46%',
-    backgroundColor: 'rgba(18, 8, 22, 0.42)',
+    height: '52%',
+    backgroundColor: 'rgba(18, 8, 22, 0.48)',
+  },
+  campusPill: {
+    position: 'absolute',
+    top: Spacing.three,
+    right: Spacing.three,
+    minHeight: 32,
+    borderRadius: Radius.pill,
+    paddingHorizontal: Spacing.two,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
+    backgroundColor: 'rgba(36, 16, 39, 0.58)',
+  },
+  campusPillText: {
+    color: '#FFFFFF',
   },
   swipeInfo: {
     position: 'absolute',
     left: Spacing.three,
     right: Spacing.three,
-    bottom: Spacing.four,
+    bottom: Spacing.five,
     gap: Spacing.one,
   },
   swipeTitle: {
@@ -490,10 +512,6 @@ const styles = StyleSheet.create({
   },
   swipeChipText: {
     color: '#FFFFFF',
-  },
-  swipeMatchRow: {
-    alignItems: 'flex-start',
-    paddingTop: Spacing.one,
   },
   heroCard: {
     borderRadius: Radius.xxl,
