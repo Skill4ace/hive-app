@@ -284,7 +284,7 @@ export function SwipeListingCard({ listing, height, onPress }: SwipeListingCardP
           opacity: pressed ? 0.92 : 1,
         },
       ]}>
-      <Image source={{ uri: listing.image }} style={StyleSheet.absoluteFill} contentFit="cover" transition={260} />
+      <Image source={{ uri: listing.image }} style={StyleSheet.absoluteFill} contentFit="cover" />
       <View style={[styles.swipeScrim, { backgroundColor: 'rgba(19, 8, 23, 0.28)' }]} />
       <View style={styles.swipeBottomShade} />
       <View style={styles.campusPill}>
@@ -410,6 +410,47 @@ type GroupConsensusRowProps = {
   people: { name: string; source?: string }[];
   onPress?: () => void;
 };
+
+type SavedListingRowProps = {
+  listing: Listing;
+  onPress?: () => void;
+};
+
+export function SavedListingRow({ listing, onPress }: SavedListingRowProps) {
+  const theme = useTheme();
+
+  return (
+    <Pressable
+      accessibilityRole={onPress ? 'button' : undefined}
+      accessibilityLabel={onPress ? `Open ${listing.title}` : undefined}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.consensus,
+        {
+          backgroundColor: theme.surface,
+          borderColor: theme.border,
+          opacity: pressed ? 0.78 : 1,
+        },
+      ]}>
+      <Image source={{ uri: listing.image }} style={styles.consensusImage} contentFit="cover" transition={220} />
+      <View style={styles.consensusCopy}>
+        <ThemedText type="smallBold" numberOfLines={1}>
+          {listing.title}
+        </ThemedText>
+        <PriceLabel price={listing.price} muted />
+        <ThemedText type="caption" themeColor="textSecondary" numberOfLines={1}>
+          {listing.location}
+        </ThemedText>
+        <View style={styles.savedRowMeta}>
+          <ListingMetaRow beds={listing.beds} baths={listing.baths} compact />
+          <ThemedText type="caption" style={{ color: theme.primary }} numberOfLines={1}>
+            {listing.campusDistance}
+          </ThemedText>
+        </View>
+      </View>
+    </Pressable>
+  );
+}
 
 export function GroupConsensusRow({ listing, likes, status, people, onPress }: GroupConsensusRowProps) {
   const theme = useTheme();
@@ -655,6 +696,13 @@ const styles = StyleSheet.create({
     gap: Spacing.one,
   },
   consensusBottom: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.two,
+    paddingTop: Spacing.one,
+  },
+  savedRowMeta: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',

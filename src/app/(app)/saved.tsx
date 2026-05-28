@@ -4,7 +4,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { AppTopBar } from '@/components/hive/app-shell';
 import { IconButton, Screen, SegmentedControl, hiveSymbol } from '@/components/hive/primitives';
-import { GroupConsensusRow, ListingCard } from '@/components/hive/listing';
+import { GroupConsensusRow, SavedListingRow } from '@/components/hive/listing';
 import { Spacing } from '@/constants/theme';
 import { demoListings, demoPeople } from '@/data/module-one-demo';
 
@@ -34,19 +34,17 @@ export default function SavedScreen() {
       <SegmentedControl options={options} value={tab} onChange={setTab} />
 
       {tab === 'all' ? (
-        <View style={styles.grid}>
-          {demoListings.map((listing, index) => (
-            <View key={listing.id} style={styles.gridItem}>
-              <ListingCard
-                listing={listing}
-                saved={index < 3}
-                onPress={() => router.push({ pathname: '/listing/[id]', params: { id: listing.id } })}
-              />
-            </View>
+        <View style={styles.list}>
+          {demoListings.map((listing) => (
+            <SavedListingRow
+              key={listing.id}
+              listing={listing}
+              onPress={() => router.push({ pathname: '/listing/[id]', params: { id: listing.id } })}
+            />
           ))}
         </View>
       ) : (
-        <View style={styles.matchedList}>
+        <View style={styles.list}>
           {matchedListings.map((listing) => (
             <GroupConsensusRow
               key={listing.id}
@@ -70,17 +68,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     paddingBottom: 110,
   },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.three,
-  },
-  gridItem: {
-    flexBasis: '47%',
-    flexGrow: 1,
-    minWidth: 164,
-  },
-  matchedList: {
+  list: {
     gap: Spacing.two,
   },
 });

@@ -1,11 +1,11 @@
+import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import MapView, { Marker, type Region } from 'react-native-maps';
 
 import { AppTopBar } from '@/components/hive/app-shell';
-import { IconButton, IconGlyph, Screen, hiveSymbol } from '@/components/hive/primitives';
-import { ListingCard } from '@/components/hive/listing';
+import { IconButton, IconGlyph, Pill, Screen, hiveSymbol } from '@/components/hive/primitives';
 import { ThemedText } from '@/components/themed-text';
 import { Fonts, Radius, Shadows, Spacing } from '@/constants/theme';
 import { demoListings } from '@/data/module-one-demo';
@@ -16,6 +16,11 @@ const UCLA_REGION: Region = {
   longitude: -118.4467,
   latitudeDelta: 0.033,
   longitudeDelta: 0.027,
+};
+
+const UCLA_COORDINATE = {
+  latitude: 34.0689,
+  longitude: -118.4452,
 };
 
 export default function MapScreen() {
@@ -42,7 +47,23 @@ export default function MapScreen() {
           loadingBackgroundColor={theme.backgroundElement}
           showsBuildings
           showsCompass={false}
-          showsPointsOfInterests>
+          showsPointsOfInterests
+          legalLabelInsets={{ bottom: 10, left: 10, right: 10, top: 10 }}>
+          <Marker coordinate={UCLA_COORDINATE} anchor={{ x: 0.5, y: 0.5 }}>
+            <View style={styles.campusMarker}>
+              <View style={[styles.campusDot, { backgroundColor: theme.primary, shadowColor: theme.shadow }]}>
+                <IconGlyph
+                  name={hiveSymbol({ ios: 'graduationcap.fill', android: 'school', web: 'school' })}
+                  color={theme.primaryText}
+                  size={16}
+                />
+              </View>
+              <ThemedText type="caption" style={{ color: theme.primary }}>
+                UCLA
+              </ThemedText>
+            </View>
+          </Marker>
+
           {demoListings.map((listing) => {
             if (!listing.coordinates) {
               return null;
@@ -97,27 +118,52 @@ export default function MapScreen() {
           />
         </View>
 
-        <View style={styles.campusPin}>
-          <View style={[styles.campusDot, { backgroundColor: theme.primary }]}>
-            <IconGlyph
-              name={hiveSymbol({ ios: 'graduationcap.fill', android: 'school', web: 'school' })}
-              color={theme.primaryText}
-              size={16}
-            />
+      </View>
+
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Open ${selectedListing.title}`}
+        onPress={() => router.push({ pathname: '/listing/[id]', params: { id: selectedListing.id } })}
+        style={({ pressed }) => [
+          styles.previewCard,
+          {
+            backgroundColor: theme.surface,
+            borderColor: theme.border,
+            shadowColor: theme.shadow,
+            opacity: pressed ? 0.78 : 1,
+          },
+        ]}>
+        <Image
+          source={{ uri: selectedListing.image }}
+          style={styles.previewImage}
+          contentFit="cover"
+          transition={220}
+        />
+        <View style={styles.previewCopy}>
+          <View style={styles.previewTop}>
+            <ThemedText type="sectionTitle" numberOfLines={1} style={styles.previewTitle}>
+              {selectedListing.title}
+            </ThemedText>
+            {selectedListing.status ? (
+              <Pill tone={selectedListing.status === 'discussing' ? 'warning' : 'primary'}>
+                {selectedListing.status === 'discussing' ? 'Discussing' : 'Matched'}
+              </Pill>
+            ) : null}
           </View>
-          <ThemedText type="caption" style={{ color: theme.primary }}>
-            UCLA
+          <View style={styles.previewPriceLine}>
+            <ThemedText type="subtitle">{selectedListing.price}</ThemedText>
+            <ThemedText type="small" themeColor="textSecondary">
+              / mo
+            </ThemedText>
+          </View>
+          <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
+            {selectedListing.location}
+          </ThemedText>
+          <ThemedText type="smallBold" style={{ color: theme.primary }}>
+            {selectedListing.campusDistance}
           </ThemedText>
         </View>
-
-        <View style={styles.preview}>
-          <ListingCard
-            listing={selectedListing}
-            variant="row"
-            onPress={() => router.push({ pathname: '/listing/[id]', params: { id: selectedListing.id } })}
-          />
-        </View>
-      </View>
+      </Pressable>
     </Screen>
   );
 }
@@ -133,7 +179,7 @@ const styles = StyleSheet.create({
   },
   mapShell: {
     flex: 1,
-    minHeight: 520,
+    minHeight: 460,
     borderRadius: Radius.xxl,
     borderWidth: 1,
     overflow: 'hidden',
@@ -178,10 +224,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.two,
     ...Shadows.soft,
   },
-  campusPin: {
-    position: 'absolute',
-    top: '36%',
-    left: '53%',
+  campusMarker: {
     alignItems: 'center',
     gap: Spacing.one,
   },
@@ -193,10 +236,37 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     ...Shadows.soft,
   },
-  preview: {
-    position: 'absolute',
-    left: Spacing.three,
-    right: Spacing.three,
-    bottom: Spacing.three,
+  previewCard: {
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    padding: Spacing.two,
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: Spacing.three,
+    ...Shadows.soft,
+  },
+  previewImage: {
+    width: 112,
+    height: 112,
+    borderRadius: Radius.lg,
+  },
+  previewCopy: {
+    flex: 1,
+    minHeight: 112,
+    justifyContent: 'center',
+    gap: 3,
+  },
+  previewTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  previewTitle: {
+    flex: 1,
+  },
+  previewPriceLine: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 3,
   },
 });

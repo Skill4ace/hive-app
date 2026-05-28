@@ -23,19 +23,22 @@ export default function DiscoverScreen() {
   const router = useRouter();
   const { height, width } = useWindowDimensions();
   const [activeIndex, setActiveIndex] = useState(0);
+  const [isCommitting, setIsCommitting] = useState(false);
   const [, setHistory] = useState<number[]>([]);
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
+  const promotedProgress = useSharedValue(0);
   const featured = demoListings[activeIndex];
+  const nextListing = demoListings[(activeIndex + 1) % demoListings.length];
+  const thirdListing = demoListings[(activeIndex + 2) % demoListings.length];
   const cardHeight = Math.min(575, Math.max(455, height * 0.58));
   const swipeThreshold = Math.min(width * 0.26, 128);
 
-  const moveNext = () => {
-    setHistory((previous) => [...previous, activeIndex]);
-    setActiveIndex((current) => (current + 1) % demoListings.length);
-  };
-
   const undo = () => {
+    translateX.value = 0;
+    translateY.value = 0;
+    promotedProgress.value = 0;
+
     setHistory((previous) => {
       const prior = previous.at(-1);
 
@@ -49,8 +52,29 @@ export default function DiscoverScreen() {
     });
   };
 
-  const commitSwipe = () => {
-    moveNext();
+  const finishSwipe = () => {
+    setIsCommitting(true);
+    promotedProgress.value = 1;
+
+    requestAnimationFrame(() => {
+      translateX.value = 0;
+      translateY.value = 0;
+      promotedProgress.value = 0;
+      setHistory((previous) => [...previous, activeIndex]);
+      setActiveIndex((current) => (current + 1) % demoListings.length);
+      setIsCommitting(false);
+    });
+  };
+
+  const animateDecision = (direction: 1 | -1) => {
+    translateY.value = withTiming(-8, { duration: 120 });
+    translateX.value = withTiming(direction * (width + 140), { duration: 230 }, (finished) => {
+      if (!finished) {
+        return;
+      }
+
+      runOnJS(finishSwipe)();
+    });
   };
 
   const panGesture = Gesture.Pan()
@@ -71,14 +95,12 @@ export default function DiscoverScreen() {
 
       const direction = projectedX > 0 ? 1 : -1;
       translateY.value = withTiming(event.translationY * 0.28, { duration: 160 });
-      translateX.value = withTiming(direction * (width + 140), { duration: 190 }, (finished) => {
+      translateX.value = withTiming(direction * (width + 140), { duration: 230 }, (finished) => {
         if (!finished) {
           return;
         }
 
-        translateX.value = 0;
-        translateY.value = 0;
-        runOnJS(commitSwipe)();
+        runOnJS(finishSwipe)();
       });
     });
 
@@ -99,19 +121,31 @@ export default function DiscoverScreen() {
     };
   });
 
+  const nextCardStyle = useAnimatedStyle(() => {
+    const progress = Math.max(Math.min(Math.abs(translateX.value) / swipeThreshold, 1), promotedProgress.value);
+
+    return {
+      opacity: interpolate(progress, [0, 1], [0.9, 1], Extrapolation.CLAMP),
+      transform: [
+        { translateY: interpolate(progress, [0, 1], [12, 0], Extrapolation.CLAMP) },
+        { scale: interpolate(progress, [0, 1], [0.955, 1], Extrapolation.CLAMP) },
+      ],
+    };
+  });
+
   const passBadgeStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(translateX.value, [-swipeThreshold, -24], [1, 0], Extrapolation.CLAMP),
+    opacity: interpolate(translateX.value, [-swipeThreshold, -12], [1, 0], Extrapolation.CLAMP),
     transform: [
       { rotate: '-10deg' },
-      { scale: interpolate(translateX.value, [-swipeThreshold, -24], [1, 0.92], Extrapolation.CLAMP) },
+      { scale: interpolate(translateX.value, [-swipeThreshold, -12], [1, 0.92], Extrapolation.CLAMP) },
     ],
   }));
 
   const likeBadgeStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(translateX.value, [24, swipeThreshold], [0, 1], Extrapolation.CLAMP),
+    opacity: interpolate(translateX.value, [12, swipeThreshold], [0, 1], Extrapolation.CLAMP),
     transform: [
       { rotate: '10deg' },
-      { scale: interpolate(translateX.value, [24, swipeThreshold], [0.92, 1], Extrapolation.CLAMP) },
+      { scale: interpolate(translateX.value, [12, swipeThreshold], [0.92, 1], Extrapolation.CLAMP) },
     ],
   }));
 
@@ -121,29 +155,39 @@ export default function DiscoverScreen() {
       <LocationFilterBar location="UCLA" activeFilters={2} />
 
       <View style={styles.deck}>
-        <GestureDetector gesture={panGesture}>
-          <Animated.View key={featured.id} style={animatedCardStyle}>
-            <SwipeListingCard
-              listing={featured}
-              height={cardHeight}
-              onPress={() => router.push({ pathname: '/listing/[id]', params: { id: featured.id } })}
-            />
-            <Animated.View style={[styles.decisionBadge, styles.passBadge, passBadgeStyle]}>
-              <ThemedText type="sectionTitle" style={styles.passText}>
-                Pass
-              </ThemedText>
-            </Animated.View>
-            <Animated.View style={[styles.decisionBadge, styles.likeBadge, likeBadgeStyle]}>
-              <ThemedText type="sectionTitle" style={styles.likeText}>
-                Like
-              </ThemedText>
-            </Animated.View>
+        <View style={[styles.cardStack, { height: cardHeight }]}>
+          <Animated.View pointerEvents="none" style={[styles.stackedCard, styles.thirdCard]}>
+            <SwipeListingCard listing={thirdListing} height={cardHeight} />
           </Animated.View>
-        </GestureDetector>
+          <Animated.View pointerEvents="none" style={[styles.stackedCard, nextCardStyle]}>
+            <SwipeListingCard listing={nextListing} height={cardHeight} />
+          </Animated.View>
+          <GestureDetector gesture={panGesture}>
+            <Animated.View
+              key={featured.id}
+              style={[styles.activeCard, isCommitting && styles.hiddenActiveCard, animatedCardStyle]}>
+              <SwipeListingCard
+                listing={featured}
+                height={cardHeight}
+                onPress={() => router.push({ pathname: '/listing/[id]', params: { id: featured.id } })}
+              />
+              <Animated.View style={[styles.decisionBadge, styles.passBadge, passBadgeStyle]}>
+                <ThemedText type="sectionTitle" style={styles.passText}>
+                  Skip
+                </ThemedText>
+              </Animated.View>
+              <Animated.View style={[styles.decisionBadge, styles.likeBadge, likeBadgeStyle]}>
+                <ThemedText type="sectionTitle" style={styles.likeText}>
+                  Like
+                </ThemedText>
+              </Animated.View>
+            </Animated.View>
+          </GestureDetector>
+        </View>
         <View style={styles.swipeControls}>
           <SwipeActionButton action="undo" onPress={undo} />
-          <SwipeActionButton action="pass" onPress={moveNext} />
-          <SwipeActionButton action="like" onPress={moveNext} />
+          <SwipeActionButton action="pass" onPress={() => animateDecision(-1)} />
+          <SwipeActionButton action="like" onPress={() => animateDecision(1)} />
           <SwipeActionButton
             action="map"
             onPress={() => router.push({ pathname: '/map', params: { selected: featured.id } })}
@@ -167,30 +211,61 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'flex-start',
   },
+  cardStack: {
+    position: 'relative',
+  },
+  stackedCard: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    zIndex: 1,
+  },
+  thirdCard: {
+    opacity: 0.34,
+    transform: [{ translateY: 23 }, { scale: 0.92 }],
+    zIndex: 0,
+  },
+  activeCard: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    zIndex: 3,
+  },
+  hiddenActiveCard: {
+    opacity: 0,
+  },
   decisionBadge: {
     position: 'absolute',
-    top: Spacing.four,
-    minHeight: 44,
-    borderRadius: 14,
-    borderWidth: 2,
-    paddingHorizontal: Spacing.three,
+    top: Spacing.five,
+    minHeight: 54,
+    borderRadius: 16,
+    borderWidth: 3,
+    paddingHorizontal: Spacing.four,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(36, 16, 39, 0.72)',
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    zIndex: 10,
+    elevation: 10,
   },
   passBadge: {
     left: Spacing.four,
-    borderColor: '#FFFFFF',
+    borderColor: '#241027',
   },
   likeBadge: {
     right: Spacing.four,
-    borderColor: '#FFFFFF',
+    borderColor: '#64207A',
   },
   passText: {
-    color: '#FFFFFF',
+    color: '#241027',
+    textTransform: 'uppercase',
+    letterSpacing: 0,
   },
   likeText: {
-    color: '#FFFFFF',
+    color: '#64207A',
+    textTransform: 'uppercase',
+    letterSpacing: 0,
   },
   swipeControls: {
     marginTop: Spacing.two,
