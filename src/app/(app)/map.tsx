@@ -39,6 +39,27 @@ export default function MapScreen() {
     <Screen scroll={false} contentStyle={styles.screen}>
       <AppTopBar title="Map" />
 
+      <View style={styles.searchRow}>
+        <View style={[styles.searchBar, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <IconGlyph
+            name={hiveSymbol({ ios: 'magnifyingglass', android: 'search', web: 'search' })}
+            color={theme.textSecondary}
+            size={18}
+          />
+          <TextInput
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Campus or apartment"
+            placeholderTextColor={theme.textTertiary}
+            style={[styles.searchInput, { color: theme.text }]}
+          />
+        </View>
+        <IconButton
+          icon={hiveSymbol({ ios: 'slider.horizontal.3', android: 'tune', web: 'tune' })}
+          label="Filter map"
+        />
+      </View>
+
       <View style={[styles.mapShell, { backgroundColor: theme.surface, borderColor: theme.border, shadowColor: theme.shadow }]}>
         <MapView
           style={StyleSheet.absoluteFill}
@@ -96,28 +117,6 @@ export default function MapScreen() {
             );
           })}
         </MapView>
-
-        <View style={styles.overlayTop}>
-          <View style={[styles.searchBar, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <IconGlyph
-              name={hiveSymbol({ ios: 'magnifyingglass', android: 'search', web: 'search' })}
-              color={theme.textSecondary}
-              size={18}
-            />
-            <TextInput
-              value={query}
-              onChangeText={setQuery}
-              placeholder="Campus or apartment"
-              placeholderTextColor={theme.textTertiary}
-              style={[styles.searchInput, { color: theme.text }]}
-            />
-          </View>
-          <IconButton
-            icon={hiveSymbol({ ios: 'slider.horizontal.3', android: 'tune', web: 'tune' })}
-            label="Filter map"
-          />
-        </View>
-
       </View>
 
       <Pressable
@@ -174,29 +173,26 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 620,
     alignSelf: 'center',
-    paddingBottom: 110,
-    gap: Spacing.two,
+    paddingBottom: 74,
+    gap: Spacing.one,
   },
   mapShell: {
     flex: 1,
-    minHeight: 460,
+    minHeight: 470,
     borderRadius: Radius.xxl,
     borderWidth: 1,
     overflow: 'hidden',
     ...Shadows.card,
   },
-  overlayTop: {
-    position: 'absolute',
-    top: Spacing.three,
-    left: Spacing.three,
-    right: Spacing.three,
+  searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.two,
+    paddingTop: 0,
   },
   searchBar: {
     flex: 1,
-    minHeight: 48,
+    minHeight: 44,
     borderRadius: Radius.pill,
     borderWidth: 1,
     paddingHorizontal: Spacing.three,
@@ -207,7 +203,7 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    minHeight: 42,
+    minHeight: 38,
     padding: 0,
     fontSize: 15,
     lineHeight: 20,
@@ -239,22 +235,22 @@ const styles = StyleSheet.create({
   previewCard: {
     borderRadius: Radius.xl,
     borderWidth: 1,
-    padding: Spacing.two,
+    padding: 6,
     flexDirection: 'row',
     alignItems: 'stretch',
-    gap: Spacing.three,
+    gap: Spacing.two,
     ...Shadows.soft,
   },
   previewImage: {
-    width: 112,
-    height: 112,
+    width: 94,
+    height: 94,
     borderRadius: Radius.lg,
   },
   previewCopy: {
     flex: 1,
-    minHeight: 112,
+    minHeight: 94,
     justifyContent: 'center',
-    gap: 3,
+    gap: 1,
   },
   previewTop: {
     flexDirection: 'row',

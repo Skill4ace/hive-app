@@ -23,52 +23,89 @@ export default function DiscoverScreen() {
   const router = useRouter();
   const { height, width } = useWindowDimensions();
   const [activeIndex, setActiveIndex] = useState(0);
-  const [isCommitting, setIsCommitting] = useState(false);
+  const [coverIndex, setCoverIndex] = useState<number | null>(null);
+  const [isTransitioning, setIsTransitioning] = useState(false);
   const [, setHistory] = useState<number[]>([]);
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
-  const promotedProgress = useSharedValue(0);
+  const dragX = useSharedValue(0);
+  const coverOpacity = useSharedValue(0);
+  const nextIndex = (activeIndex + 1) % demoListings.length;
   const featured = demoListings[activeIndex];
-  const nextListing = demoListings[(activeIndex + 1) % demoListings.length];
-  const thirdListing = demoListings[(activeIndex + 2) % demoListings.length];
+  const nextListing = demoListings[nextIndex];
+  const coverListing = demoListings[coverIndex ?? nextIndex];
   const cardHeight = Math.min(575, Math.max(455, height * 0.58));
   const swipeThreshold = Math.min(width * 0.26, 128);
 
-  const undo = () => {
+  const resetMotion = () => {
     translateX.value = 0;
     translateY.value = 0;
-    promotedProgress.value = 0;
+    dragX.value = 0;
+    coverOpacity.value = 0;
+  };
+
+  const resetDeckFromIndex = (index: number) => {
+    resetMotion();
+    setCoverIndex(null);
+    setIsTransitioning(false);
+    setActiveIndex(index);
+  };
+
+  const undo = () => {
+    if (isTransitioning) {
+      return;
+    }
 
     setHistory((previous) => {
       const prior = previous.at(-1);
 
       if (prior === undefined) {
-        setActiveIndex((current) => (current - 1 + demoListings.length) % demoListings.length);
+        resetDeckFromIndex((activeIndex - 1 + demoListings.length) % demoListings.length);
         return previous;
       }
 
-      setActiveIndex(prior);
+      resetDeckFromIndex(prior);
       return previous.slice(0, -1);
     });
   };
 
-  const finishSwipe = () => {
-    setIsCommitting(true);
-    promotedProgress.value = 1;
+  const beginTransition = () => {
+    setIsTransitioning(true);
+  };
 
-    requestAnimationFrame(() => {
-      translateX.value = 0;
-      translateY.value = 0;
-      promotedProgress.value = 0;
-      setHistory((previous) => [...previous, activeIndex]);
-      setActiveIndex((current) => (current + 1) % demoListings.length);
-      setIsCommitting(false);
-    });
+  const finishTransition = () => {
+    setCoverIndex(null);
+    setIsTransitioning(false);
+  };
+
+  const finishSwipe = () => {
+    const promotedIndex = nextIndex;
+
+    coverOpacity.value = 1;
+    setCoverIndex(promotedIndex);
+    setIsTransitioning(true);
+    setHistory((previous) => [...previous, activeIndex]);
+    setActiveIndex(promotedIndex);
+    translateX.value = 0;
+    translateY.value = 0;
+    dragX.value = 0;
+
+    setTimeout(() => {
+      coverOpacity.value = withTiming(0, { duration: 90 });
+      setTimeout(finishTransition, 100);
+    }, 80);
   };
 
   const animateDecision = (direction: 1 | -1) => {
+    if (isTransitioning) {
+      return;
+    }
+
+    setIsTransitioning(true);
+    const targetX = direction * (width + 140);
+    dragX.value = withTiming(targetX, { duration: 230 });
     translateY.value = withTiming(-8, { duration: 120 });
-    translateX.value = withTiming(direction * (width + 140), { duration: 230 }, (finished) => {
+    translateX.value = withTiming(targetX, { duration: 230 }, (finished) => {
       if (!finished) {
         return;
       }
@@ -78,8 +115,10 @@ export default function DiscoverScreen() {
   };
 
   const panGesture = Gesture.Pan()
+    .enabled(!isTransitioning)
     .activeOffsetX([-12, 12])
     .onUpdate((event) => {
+      dragX.value = event.translationX;
       translateX.value = event.translationX;
       translateY.value = event.translationY * 0.42;
     })
@@ -88,31 +127,29 @@ export default function DiscoverScreen() {
       const shouldSwipe = Math.abs(projectedX) > swipeThreshold;
 
       if (!shouldSwipe) {
+        dragX.value = withSpring(0, { damping: 18, stiffness: 190 });
         translateX.value = withSpring(0, { damping: 18, stiffness: 190 });
         translateY.value = withSpring(0, { damping: 18, stiffness: 190 });
         return;
       }
 
+      runOnJS(beginTransition)();
       const direction = projectedX > 0 ? 1 : -1;
+      const targetX = direction * (width + 140);
+      dragX.value = withTiming(targetX, { duration: 230 });
       translateY.value = withTiming(event.translationY * 0.28, { duration: 160 });
-      translateX.value = withTiming(direction * (width + 140), { duration: 230 }, (finished) => {
-        if (!finished) {
-          return;
+      translateX.value = withTiming(targetX, { duration: 230 }, (finished) => {
+        if (finished) {
+          runOnJS(finishSwipe)();
         }
-
-        runOnJS(finishSwipe)();
       });
     });
 
-  const animatedCardStyle = useAnimatedStyle(() => {
-    const rotate = interpolate(
-      translateX.value,
-      [-width, 0, width],
-      [-12, 0, 12],
-      Extrapolation.CLAMP,
-    );
+  const activeCardStyle = useAnimatedStyle(() => {
+    const rotate = interpolate(translateX.value, [-width, 0, width], [-12, 0, 12], Extrapolation.CLAMP);
 
     return {
+      zIndex: 3,
       transform: [
         { translateX: translateX.value },
         { translateY: translateY.value },
@@ -122,9 +159,10 @@ export default function DiscoverScreen() {
   });
 
   const nextCardStyle = useAnimatedStyle(() => {
-    const progress = Math.max(Math.min(Math.abs(translateX.value) / swipeThreshold, 1), promotedProgress.value);
+    const progress = Math.min(Math.abs(dragX.value) / swipeThreshold, 1);
 
     return {
+      zIndex: 1,
       opacity: interpolate(progress, [0, 1], [0.9, 1], Extrapolation.CLAMP),
       transform: [
         { translateY: interpolate(progress, [0, 1], [12, 0], Extrapolation.CLAMP) },
@@ -133,19 +171,24 @@ export default function DiscoverScreen() {
     };
   });
 
+  const coverCardStyle = useAnimatedStyle(() => ({
+    zIndex: 4,
+    opacity: coverOpacity.value,
+  }));
+
   const passBadgeStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(translateX.value, [-swipeThreshold, -12], [1, 0], Extrapolation.CLAMP),
+    opacity: interpolate(dragX.value, [-swipeThreshold, -12], [1, 0], Extrapolation.CLAMP),
     transform: [
       { rotate: '-10deg' },
-      { scale: interpolate(translateX.value, [-swipeThreshold, -12], [1, 0.92], Extrapolation.CLAMP) },
+      { scale: interpolate(dragX.value, [-swipeThreshold, -12], [1, 0.92], Extrapolation.CLAMP) },
     ],
   }));
 
   const likeBadgeStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(translateX.value, [12, swipeThreshold], [0, 1], Extrapolation.CLAMP),
+    opacity: interpolate(dragX.value, [12, swipeThreshold], [0, 1], Extrapolation.CLAMP),
     transform: [
       { rotate: '10deg' },
-      { scale: interpolate(translateX.value, [12, swipeThreshold], [0.92, 1], Extrapolation.CLAMP) },
+      { scale: interpolate(dragX.value, [12, swipeThreshold], [0.92, 1], Extrapolation.CLAMP) },
     ],
   }));
 
@@ -156,16 +199,12 @@ export default function DiscoverScreen() {
 
       <View style={styles.deck}>
         <View style={[styles.cardStack, { height: cardHeight }]}>
-          <Animated.View pointerEvents="none" style={[styles.stackedCard, styles.thirdCard]}>
-            <SwipeListingCard listing={thirdListing} height={cardHeight} />
-          </Animated.View>
-          <Animated.View pointerEvents="none" style={[styles.stackedCard, nextCardStyle]}>
+          <Animated.View pointerEvents="none" style={[styles.cardSlot, nextCardStyle]}>
             <SwipeListingCard listing={nextListing} height={cardHeight} />
           </Animated.View>
+
           <GestureDetector gesture={panGesture}>
-            <Animated.View
-              key={featured.id}
-              style={[styles.activeCard, isCommitting && styles.hiddenActiveCard, animatedCardStyle]}>
+            <Animated.View style={[styles.cardSlot, activeCardStyle]}>
               <SwipeListingCard
                 listing={featured}
                 height={cardHeight}
@@ -183,6 +222,10 @@ export default function DiscoverScreen() {
               </Animated.View>
             </Animated.View>
           </GestureDetector>
+
+          <Animated.View pointerEvents="none" style={[styles.cardSlot, coverCardStyle]}>
+            <SwipeListingCard listing={coverListing} height={cardHeight} />
+          </Animated.View>
         </View>
         <View style={styles.swipeControls}>
           <SwipeActionButton action="undo" onPress={undo} />
@@ -214,27 +257,11 @@ const styles = StyleSheet.create({
   cardStack: {
     position: 'relative',
   },
-  stackedCard: {
+  cardSlot: {
     position: 'absolute',
     left: 0,
     right: 0,
     top: 0,
-    zIndex: 1,
-  },
-  thirdCard: {
-    opacity: 0.34,
-    transform: [{ translateY: 23 }, { scale: 0.92 }],
-    zIndex: 0,
-  },
-  activeCard: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    zIndex: 3,
-  },
-  hiddenActiveCard: {
-    opacity: 0,
   },
   decisionBadge: {
     position: 'absolute',
