@@ -1,12 +1,14 @@
+import { useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
 import { AppTopBar, SurfacePanel } from '@/components/hive/app-shell';
-import { Button, IconGlyph, Screen, hiveSymbol } from '@/components/hive/primitives';
+import { Button, FormField, IconGlyph, Screen, hiveSymbol } from '@/components/hive/primitives';
 import { ThemedText } from '@/components/themed-text';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 export default function GroupsScreen() {
+  const router = useRouter();
   const theme = useTheme();
 
   return (
@@ -23,19 +25,31 @@ export default function GroupsScreen() {
         </View>
         <View style={styles.copy}>
           <ThemedText type="title" style={styles.centerText}>
-            Start a roommate group
+            Start a UCLA group
           </ThemedText>
           <ThemedText type="small" themeColor="textSecondary" style={styles.centerText}>
-            Create a group or join one with an invite code to see shared matches in Saved.
+            Invite roommates, align campus filters, and see shared matches in Saved.
           </ThemedText>
         </View>
-        <Button fullWidth leftIcon={hiveSymbol({ ios: 'plus', android: 'add', web: 'add' })}>
+        <Button
+          fullWidth
+          leftIcon={hiveSymbol({ ios: 'plus', android: 'add', web: 'add' })}
+          onPress={() => router.push({ pathname: '/group/[id]', params: { id: 'ucla' } })}>
           Create group
         </Button>
+      </SurfacePanel>
+
+      <SurfacePanel>
+        <FormField
+          label="Invite code"
+          value="HIVE-UCLA"
+          icon={hiveSymbol({ ios: 'link', android: 'link', web: 'link' })}
+        />
         <Button
           fullWidth
           variant="secondary"
-          leftIcon={hiveSymbol({ ios: 'link', android: 'link', web: 'link' })}>
+          leftIcon={hiveSymbol({ ios: 'link', android: 'link', web: 'link' })}
+          onPress={() => router.push({ pathname: '/group/[id]', params: { id: 'ucla' } })}>
           Join with code
         </Button>
       </SurfacePanel>

@@ -1,11 +1,10 @@
 import { useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
-import { AppHero, AppSection, SettingRow, StatStrip, SurfacePanel } from '@/components/hive/app-shell';
+import { AppHero, AppSection, SettingRow, SurfacePanel } from '@/components/hive/app-shell';
 import { AvatarStack, Button, IconButton, PreferenceChip, Screen, hiveSymbol } from '@/components/hive/primitives';
-import { GroupConsensusRow } from '@/components/hive/listing';
 import { Spacing } from '@/constants/theme';
-import { demoListings, demoPeople, sharedPreferenceChips } from '@/data/module-one-demo';
+import { demoPeople, sharedPreferenceChips } from '@/data/module-one-demo';
 
 export default function GroupDetailScreen() {
   const router = useRouter();
@@ -14,8 +13,8 @@ export default function GroupDetailScreen() {
     <Screen contentStyle={styles.screen}>
       <AppHero
         eyebrow="Group"
-        title="Roommate shortlist"
-        subtitle="A focused view of shared decisions, open questions, and group preference overlap."
+        title="UCLA Roommates"
+        subtitle="Invite roommates and keep shared search rules aligned. Matched homes live in Saved."
         right={
           <IconButton
             icon={hiveSymbol({ ios: 'chevron.left', android: 'arrow_back', web: 'arrow_back' })}
@@ -27,30 +26,9 @@ export default function GroupDetailScreen() {
           <AvatarStack people={demoPeople} size={38} />
           <Button variant="secondary">Invite</Button>
         </View>
-        <StatStrip
-          items={[
-            { value: '4', label: 'Aligned' },
-            { value: '1', label: 'Budget gap', tone: 'warning' },
-            { value: '0', label: 'Dealbreakers', tone: 'success' },
-          ]}
-        />
       </AppHero>
 
-      <AppSection title="Decision queue">
-        <SurfacePanel>
-          {demoListings.slice(0, 3).map((listing, index) => (
-            <GroupConsensusRow
-              key={listing.id}
-              listing={listing}
-              likes={index === 0 ? '3/3' : '2/3'}
-              status={index === 0 ? 'matched' : 'discussing'}
-              people={demoPeople}
-            />
-          ))}
-        </SurfacePanel>
-      </AppSection>
-
-      <AppSection title="Shared rules">
+      <AppSection title="Shared search rules">
         <SurfacePanel>
           <View style={styles.chips}>
             {sharedPreferenceChips.map((chip) => (
@@ -66,6 +44,11 @@ export default function GroupDetailScreen() {
             icon={hiveSymbol({ ios: 'calendar', android: 'calendar_month', web: 'calendar_month' })}
             title="Move-in window"
             subtitle="August 1 through September 1"
+          />
+          <SettingRow
+            icon={hiveSymbol({ ios: 'figure.walk', android: 'directions_walk', web: 'directions_walk' })}
+            title="Campus distance"
+            subtitle="Under 1.5 miles from UCLA"
           />
         </SurfacePanel>
       </AppSection>

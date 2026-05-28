@@ -13,7 +13,7 @@ export default function NotificationsScreen() {
       <AppHero
         eyebrow="Notifications"
         title="Stay in sync"
-        subtitle="Choose what should interrupt you once push notifications are added."
+        subtitle="Choose which group updates should reach you first."
         right={
           <IconButton
             icon={hiveSymbol({ ios: 'chevron.left', android: 'arrow_back', web: 'arrow_back' })}

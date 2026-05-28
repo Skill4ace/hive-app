@@ -28,6 +28,7 @@ type LocationFilterBarProps = {
   location: string;
   activeFilters?: number;
   onLocationPress?: () => void;
+  onMapPress?: () => void;
   onFilterPress?: () => void;
 };
 
@@ -35,6 +36,7 @@ export function LocationFilterBar({
   location,
   activeFilters,
   onLocationPress,
+  onMapPress,
   onFilterPress,
 }: LocationFilterBarProps) {
   const theme = useTheme();
@@ -67,6 +69,27 @@ export function LocationFilterBar({
           size={16}
         />
       </Pressable>
+
+      {onMapPress ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Open map"
+          onPress={onMapPress}
+          style={({ pressed }) => [
+            styles.filterButton,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.border,
+              opacity: pressed ? 0.74 : 1,
+            },
+          ]}>
+          <IconGlyph
+            name={{ ios: 'map.fill', android: 'map', web: 'map' }}
+            color={theme.primary}
+            size={20}
+          />
+        </Pressable>
+      ) : null}
 
       <Pressable
         accessibilityRole="button"

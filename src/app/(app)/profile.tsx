@@ -23,7 +23,7 @@ export default function ProfileScreen() {
         }
       />
 
-      <AppSection title="Housing preferences">
+      <AppSection title="Campus search">
         <PreferenceSummary title="Current search" items={preferenceItems} actionLabel="Edit" />
       </AppSection>
 
@@ -41,7 +41,7 @@ export default function ProfileScreen() {
       </AppSection>
 
       <Button fullWidth variant="secondary" onPress={() => router.push('/account')}>
-        Account and privacy
+        Account settings
       </Button>
     </Screen>
   );

@@ -18,6 +18,7 @@ const options: { label: string; value: SavedTab }[] = [
 export default function SavedScreen() {
   const router = useRouter();
   const [tab, setTab] = useState<SavedTab>('all');
+  const matchedListings = demoListings.filter((listing) => listing.status === 'matched');
 
   return (
     <Screen contentStyle={styles.screen}>
@@ -46,13 +47,14 @@ export default function SavedScreen() {
         </View>
       ) : (
         <View style={styles.matchedList}>
-          {demoListings.map((listing, index) => (
+          {matchedListings.map((listing) => (
             <GroupConsensusRow
               key={listing.id}
               listing={listing}
-              likes={index % 2 === 0 ? '3/3' : '2/3'}
-              status={index % 2 === 0 ? 'matched' : 'discussing'}
+              likes="3/3"
+              status="matched"
               people={demoPeople}
+              onPress={() => router.push({ pathname: '/listing/[id]', params: { id: listing.id } })}
             />
           ))}
         </View>

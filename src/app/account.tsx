@@ -12,8 +12,8 @@ export default function AccountScreen() {
     <Screen contentStyle={styles.screen}>
       <AppHero
         eyebrow="Account"
-        title="Sign-in and account"
-        subtitle="Google auth will connect here in Module 07. The shell is ready now."
+        title="Maya's Hive"
+        subtitle="Manage sign-in, notifications, privacy, and account deletion."
         right={
           <IconButton
             icon={hiveSymbol({ ios: 'chevron.left', android: 'arrow_back', web: 'arrow_back' })}
@@ -33,8 +33,20 @@ export default function AccountScreen() {
           <SettingRow
             icon={hiveSymbol({ ios: 'g.circle.fill', android: 'account_circle', web: 'account_circle' })}
             title="Google sign-in"
-            subtitle="Firebase Google auth planned"
+            subtitle="Firebase identity for campus housing data"
             value="Connected"
+          />
+          <SettingRow
+            icon={hiveSymbol({ ios: 'bell.fill', android: 'notifications', web: 'notifications' })}
+            title="Notifications"
+            subtitle="Group matches and invites"
+            onPress={() => router.push('/notifications')}
+          />
+          <SettingRow
+            icon={hiveSymbol({ ios: 'hand.raised.fill', android: 'pan_tool', web: 'pan_tool' })}
+            title="Privacy"
+            subtitle="What roommates can see"
+            onPress={() => router.push('/privacy')}
           />
           <Button variant="danger" fullWidth>
             Delete account

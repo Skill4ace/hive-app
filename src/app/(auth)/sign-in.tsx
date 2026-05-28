@@ -12,14 +12,14 @@ export default function SignInScreen() {
     <Screen contentStyle={styles.screen}>
       <HiveLogo size={56} />
       <AppHero
-        eyebrow="Welcome"
-        title="Find a place with your people"
-        subtitle="Firebase Google sign-in will connect here in Module 07. For now, enter the app shell."
+        eyebrow="Hive"
+        title="Find a place near campus with your people"
+        subtitle="Swipe homes, compare the map, and let your roommate group surface the places everyone likes."
       />
       <Button
         fullWidth
         leftIcon={hiveSymbol({ ios: 'g.circle.fill', android: 'account_circle', web: 'account_circle' })}
-        onPress={() => router.replace('/discover')}>
+        onPress={() => router.replace('/onboarding')}>
         Continue with Google
       </Button>
     </Screen>

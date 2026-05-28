@@ -19,12 +19,29 @@ export type Listing = {
   title: string;
   price: string;
   location: string;
+  address?: string;
+  campus?: string;
+  campusDistance?: string;
+  campusCommute?: string;
+  coordinates?: {
+    latitude: number;
+    longitude: number;
+  };
+  priceShort?: string;
+  available?: string;
+  leaseTerm?: string;
+  deposit?: string;
+  utilities?: string;
   image: string;
+  photos?: string[];
   beds: number;
   baths: number;
   amenities: string[];
   match: number;
   status?: 'matched' | 'discussing' | 'saved' | 'viewed';
+  mapX?: number;
+  mapY?: number;
+  overview?: string;
 };
 
 type ListingPhotoProps = {
@@ -60,7 +77,7 @@ type MatchBadgeProps = {
 export function MatchBadge({ value, compact }: MatchBadgeProps) {
   return (
     <Badge tone="primary">
-      {compact ? `${value}%` : `${value}% Group Match`}
+      {compact ? `${value}%` : `${value}% Roommate Fit`}
     </Badge>
   );
 }
@@ -175,7 +192,7 @@ export function ListingCard({ listing, variant = 'grid', onPress, heroHeight = 3
             {listing.location}
           </ThemedText>
           <ThemedText type="caption" style={{ color: theme.primary }}>
-            {listing.match}% match
+            {listing.campusDistance ?? `${listing.match}% match`}
           </ThemedText>
         </View>
       </Pressable>
@@ -277,7 +294,7 @@ export function SwipeListingCard({ listing, height, onPress }: SwipeListingCardP
           size={14}
         />
         <ThemedText type="caption" style={styles.campusPillText}>
-          0.8 mi to campus
+          {listing.campusDistance ?? 'Near campus'}
         </ThemedText>
       </View>
 
@@ -306,30 +323,48 @@ export function SwipeListingCard({ listing, height, onPress }: SwipeListingCardP
 }
 
 type SwipeActionButtonProps = {
-  action: 'undo' | 'pass' | 'like';
+  action: 'map' | 'undo' | 'pass' | 'like';
   onPress?: () => void;
 };
 
 export function SwipeActionButton({ action, onPress }: SwipeActionButtonProps) {
   const config = {
+    map: {
+      icon: hiveSymbol({ ios: 'map.fill', android: 'map', web: 'map' }),
+      label: 'Open map',
+      tone: 'primary' as const,
+      selected: false,
+    },
     undo: {
       icon: hiveSymbol({ ios: 'arrow.counterclockwise', android: 'refresh', web: 'refresh' }),
       label: 'Undo',
       tone: 'neutral' as const,
+      selected: false,
     },
     pass: {
       icon: hiveSymbol({ ios: 'xmark', android: 'close', web: 'close' }),
       label: 'Pass',
       tone: 'neutral' as const,
+      selected: false,
     },
     like: {
       icon: hiveSymbol({ ios: 'heart.fill', android: 'favorite', web: 'favorite' }),
       label: 'Like',
       tone: 'primary' as const,
+      selected: false,
     },
   }[action];
 
-  return <IconButton icon={config.icon} label={config.label} tone={config.tone} size="lg" onPress={onPress} />;
+  return (
+    <IconButton
+      icon={config.icon}
+      label={config.label}
+      tone={config.tone}
+      selected={config.selected}
+      size="lg"
+      onPress={onPress}
+    />
+  );
 }
 
 type PreferenceSummaryProps = {
@@ -373,15 +408,27 @@ type GroupConsensusRowProps = {
   likes: string;
   status: 'matched' | 'discussing' | 'passed';
   people: { name: string; source?: string }[];
+  onPress?: () => void;
 };
 
-export function GroupConsensusRow({ listing, likes, status, people }: GroupConsensusRowProps) {
+export function GroupConsensusRow({ listing, likes, status, people, onPress }: GroupConsensusRowProps) {
   const theme = useTheme();
   const statusTone = status === 'matched' ? 'primary' : status === 'discussing' ? 'warning' : 'neutral';
   const statusLabel = status === 'matched' ? 'Matched' : status === 'discussing' ? 'Under discussion' : 'Passed';
 
   return (
-    <View style={[styles.consensus, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+    <Pressable
+      accessibilityRole={onPress ? 'button' : undefined}
+      accessibilityLabel={onPress ? `Open ${listing.title}` : undefined}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.consensus,
+        {
+          backgroundColor: theme.surface,
+          borderColor: theme.border,
+          opacity: pressed ? 0.78 : 1,
+        },
+      ]}>
       <Image source={{ uri: listing.image }} style={styles.consensusImage} contentFit="cover" transition={220} />
       <View style={styles.consensusCopy}>
         <View style={styles.consensusTop}>
@@ -397,11 +444,11 @@ export function GroupConsensusRow({ listing, likes, status, people }: GroupConse
         <View style={styles.consensusBottom}>
           <AvatarStack people={people} size={26} />
           <ThemedText type="caption" style={{ color: theme.primary }}>
-            {likes} likes · {listing.match}% match
+            {likes} likes · {listing.campusDistance ?? `${listing.match}% match`}
           </ThemedText>
         </View>
       </View>
-    </View>
+    </Pressable>
   );
 }
 

@@ -22,6 +22,12 @@ const tabs = [
     icon: { ios: 'magnifyingglass', android: 'travel_explore', web: 'travel_explore' },
   },
   {
+    name: 'map',
+    href: '/map',
+    label: 'Map',
+    icon: { ios: 'map.fill', android: 'map', web: 'map' },
+  },
+  {
     name: 'saved',
     href: '/saved',
     label: 'Saved',

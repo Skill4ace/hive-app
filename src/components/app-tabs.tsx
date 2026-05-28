@@ -21,6 +21,14 @@ export default function AppTabs() {
         />
       </NativeTabs.Trigger>
 
+      <NativeTabs.Trigger name="map">
+        <NativeTabs.Trigger.Label>Map</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon
+          sf={{ default: 'map', selected: 'map.fill' }}
+          md={{ default: 'map', selected: 'map' }}
+        />
+      </NativeTabs.Trigger>
+
       <NativeTabs.Trigger name="saved">
         <NativeTabs.Trigger.Label>Saved</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon
@@ -35,7 +43,6 @@ export default function AppTabs() {
           sf={{ default: 'person.2', selected: 'person.2.fill' }}
           md={{ default: 'groups', selected: 'groups' }}
         />
-        <NativeTabs.Trigger.Badge selectedBackgroundColor={colors.primary}>4</NativeTabs.Trigger.Badge>
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="profile">

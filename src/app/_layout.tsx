@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import * as SystemUI from 'expo-system-ui';
 import { useEffect, useMemo } from 'react';
 import { useColorScheme } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { Colors } from '@/constants/theme';
@@ -32,24 +33,26 @@ export default function TabLayout() {
   }, [colors.background]);
 
   return (
-    <ThemeProvider value={navigationTheme}>
-      <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
-      <AnimatedSplashOverlay />
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          contentStyle: { backgroundColor: colors.background },
-        }}>
-        <Stack.Screen name="index" />
-        <Stack.Screen name="(app)" />
-        <Stack.Screen name="(auth)" options={{ presentation: 'modal' }} />
-        <Stack.Screen name="listing/[id]" options={{ presentation: 'card' }} />
-        <Stack.Screen name="group/[id]" options={{ presentation: 'card' }} />
-        <Stack.Screen name="preferences" options={{ presentation: 'card' }} />
-        <Stack.Screen name="account" options={{ presentation: 'card' }} />
-        <Stack.Screen name="notifications" options={{ presentation: 'card' }} />
-        <Stack.Screen name="privacy" options={{ presentation: 'card' }} />
-      </Stack>
-    </ThemeProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ThemeProvider value={navigationTheme}>
+        <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
+        <AnimatedSplashOverlay />
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            contentStyle: { backgroundColor: colors.background },
+          }}>
+          <Stack.Screen name="index" />
+          <Stack.Screen name="(app)" />
+          <Stack.Screen name="(auth)" options={{ presentation: 'modal' }} />
+          <Stack.Screen name="listing/[id]" options={{ presentation: 'card' }} />
+          <Stack.Screen name="group/[id]" options={{ presentation: 'card' }} />
+          <Stack.Screen name="preferences" options={{ presentation: 'card' }} />
+          <Stack.Screen name="account" options={{ presentation: 'card' }} />
+          <Stack.Screen name="notifications" options={{ presentation: 'card' }} />
+          <Stack.Screen name="privacy" options={{ presentation: 'card' }} />
+        </Stack>
+      </ThemeProvider>
+    </GestureHandlerRootView>
   );
 }
