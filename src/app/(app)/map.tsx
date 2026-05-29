@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import MapView, { Marker, type Region } from 'react-native-maps';
 
@@ -31,8 +31,9 @@ export default function MapScreen() {
   const { preferences } = useHiveAppState();
   const { data: listings, loading, error, refresh } = useRealListings();
   const params = useLocalSearchParams<{ selected?: string }>();
+  const searchInputRef = useRef<TextInput>(null);
   const [selectedId, setSelectedId] = useState<string | null>(params.selected ?? null);
-  const [query, setQuery] = useState(preferences.campusName);
+  const [query, setQuery] = useState('');
   const filteredListings = useMemo(() => searchListings(listings, query), [listings, query]);
   const selectedListing =
     filteredListings.find((listing) => listing.id === selectedId) ??
@@ -40,6 +41,12 @@ export default function MapScreen() {
     filteredListings[0] ??
     listings[0] ??
     null;
+
+  useFocusEffect(
+    useCallback(() => {
+      searchInputRef.current?.blur();
+    }, []),
+  );
 
   return (
     <Screen scroll={false} contentStyle={styles.screen}>
@@ -53,9 +60,10 @@ export default function MapScreen() {
             size={18}
           />
           <TextInput
+            ref={searchInputRef}
             value={query}
             onChangeText={setQuery}
-            placeholder="Campus or apartment"
+            placeholder="Search apartment"
             placeholderTextColor={theme.textTertiary}
             style={[styles.searchInput, { color: theme.text }]}
           />

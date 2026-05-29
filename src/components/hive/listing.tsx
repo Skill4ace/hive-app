@@ -366,12 +366,21 @@ export function SwipeListingCard({ listing, height, onPress, onImageLoad }: Swip
 }
 
 type SwipeActionButtonProps = {
-  action: 'map' | 'undo' | 'pass' | 'like';
+  action: 'filters' | 'map' | 'undo' | 'pass' | 'like';
+  badgeCount?: number;
+  size?: 'md' | 'lg';
   onPress?: () => void;
 };
 
-export function SwipeActionButton({ action, onPress }: SwipeActionButtonProps) {
+export function SwipeActionButton({ action, badgeCount, size = 'lg', onPress }: SwipeActionButtonProps) {
+  const theme = useTheme();
   const config = {
+    filters: {
+      icon: hiveSymbol({ ios: 'slider.horizontal.3', android: 'tune', web: 'tune' }),
+      label: 'Open filters',
+      tone: 'neutral' as const,
+      selected: false,
+    },
     map: {
       icon: hiveSymbol({ ios: 'map.fill', android: 'map', web: 'map' }),
       label: 'Open map',
@@ -399,14 +408,23 @@ export function SwipeActionButton({ action, onPress }: SwipeActionButtonProps) {
   }[action];
 
   return (
-    <IconButton
-      icon={config.icon}
-      label={config.label}
-      tone={config.tone}
-      selected={config.selected}
-      size="lg"
-      onPress={onPress}
-    />
+    <View style={styles.actionButtonWrap}>
+      <IconButton
+        icon={config.icon}
+        label={config.label}
+        tone={config.tone}
+        selected={config.selected}
+        size={size}
+        onPress={onPress}
+      />
+      {badgeCount ? (
+        <View style={[styles.actionBadge, { backgroundColor: theme.primary }]}>
+          <ThemedText type="caption" style={styles.actionBadgeText}>
+            {badgeCount}
+          </ThemedText>
+        </View>
+      ) : null}
+    </View>
   );
 }
 
@@ -649,6 +667,27 @@ const styles = StyleSheet.create({
   },
   swipeChipText: {
     color: '#FFFFFF',
+  },
+  actionButtonWrap: {
+    position: 'relative',
+  },
+  actionBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 5,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  actionBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    lineHeight: 14,
   },
   heroCard: {
     borderRadius: Radius.xxl,

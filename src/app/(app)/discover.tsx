@@ -13,7 +13,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { AppTopBar, LocationFilterBar } from '@/components/hive/app-shell';
+import { AppTopBar } from '@/components/hive/app-shell';
 import { SwipeActionButton, SwipeListingCard, type Listing } from '@/components/hive/listing';
 import { Button, EmptyState, Screen, Skeleton, hiveSymbol } from '@/components/hive/primitives';
 import { ThemedText } from '@/components/themed-text';
@@ -36,7 +36,12 @@ export default function DiscoverScreen() {
   const revealPending = useSharedValue(0);
   const featured = deck[0];
   const nextListing = deck[1];
-  const cardHeight = Math.min(575, Math.max(455, height * 0.58));
+  const compactActions = width < 390;
+  const actionButtonSize = compactActions ? 'md' : 'lg';
+  const cardHeight = Math.min(
+    compactActions ? 540 : 650,
+    Math.max(compactActions ? 470 : 500, height * (compactActions ? 0.6 : 0.66)),
+  );
   const swipeThreshold = Math.min(width * 0.26, 128);
   const resetMotion = useCallback(() => {
     translateX.value = 0;
@@ -236,16 +241,12 @@ export default function DiscoverScreen() {
   return (
     <Screen scroll={false} contentStyle={styles.screen}>
       <AppTopBar title="Discover" />
-      <LocationFilterBar
-        location={preferences.campusName}
-        activeFilters={activeFilters}
-        onFilterPress={() => router.push('/preferences')}
-      />
 
       {loading ? (
         <View style={styles.loadingDeck}>
           <Skeleton height={cardHeight} radius={34} />
           <View style={styles.loadingControls}>
+            <Skeleton width={58} height={58} />
             <Skeleton width={58} height={58} />
             <Skeleton width={58} height={58} />
             <Skeleton width={58} height={58} />
@@ -312,13 +313,20 @@ export default function DiscoverScreen() {
               </Animated.View>
             ) : null}
           </View>
-          <View style={styles.swipeControls}>
-            <SwipeActionButton action="undo" onPress={undo} />
-            <SwipeActionButton action="pass" onPress={() => animateDecision('passed')} />
-            <SwipeActionButton action="like" onPress={() => animateDecision('liked')} />
+          <View style={[styles.swipeControls, compactActions && styles.swipeControlsCompact]}>
+            <SwipeActionButton action="undo" size={actionButtonSize} onPress={undo} />
+            <SwipeActionButton action="pass" size={actionButtonSize} onPress={() => animateDecision('passed')} />
+            <SwipeActionButton action="like" size={actionButtonSize} onPress={() => animateDecision('liked')} />
             <SwipeActionButton
               action="map"
+              size={actionButtonSize}
               onPress={() => router.push({ pathname: '/map', params: { selected: featured.id } })}
+            />
+            <SwipeActionButton
+              action="filters"
+              size={actionButtonSize}
+              badgeCount={activeFilters}
+              onPress={() => router.push('/preferences')}
             />
           </View>
         </View>
@@ -386,6 +394,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     gap: Spacing.two,
+  },
+  swipeControlsCompact: {
+    gap: Spacing.one,
   },
   loadingDeck: {
     flex: 1,
