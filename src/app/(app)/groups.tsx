@@ -167,9 +167,6 @@ export default function GroupsScreen() {
                     </Pressable>
                   ) : null}
                 </View>
-                <ThemedText type="caption" themeColor="textSecondary">
-                  {members.length} {members.length === 1 ? 'member' : 'members'} · {group.campusName}
-                </ThemedText>
               </View>
               <View style={[styles.inlineCodeBox, { backgroundColor: theme.backgroundElement }]}>
                 <ThemedText type="subtitle" numberOfLines={1} style={styles.inlineCodeText}>
@@ -488,7 +485,6 @@ const styles = StyleSheet.create({
   },
   heroCopy: {
     flex: 1,
-    gap: Spacing.one,
   },
   groupNameRow: {
     minHeight: 24,
@@ -513,17 +509,19 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   inlineCodeBox: {
-    width: 92,
-    minHeight: 44,
+    width: 96,
+    height: 44,
     borderRadius: Radius.lg,
     flexShrink: 0,
     alignItems: 'center',
     justifyContent: 'center',
   },
   inlineCodeText: {
+    includeFontPadding: false,
     letterSpacing: 0,
-    lineHeight: 24,
+    lineHeight: 28,
     textAlign: 'center',
+    textAlignVertical: 'center',
   },
   memberDivider: {
     height: 1,
