@@ -1,9 +1,16 @@
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Animated, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Animated, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { IconButton, IconGlyph, Screen, hiveSymbol } from '@/components/hive/primitives';
+import {
+  BudgetRangeStage,
+  CampusRadiusStage,
+  HomeSetupStage,
+  type MoveInMonth,
+} from '@/components/hive/onboarding-controls';
+import { IconButton, IconGlyph, hiveSymbol } from '@/components/hive/primitives';
 import { ThemedText } from '@/components/themed-text';
 import { Fonts, Radius, Shadows, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -12,7 +19,6 @@ type OnboardingStep =
   | 'identity'
   | 'group'
   | 'rent'
-  | 'moveIn'
   | 'commute'
   | 'room'
   | 'review';
@@ -22,117 +28,51 @@ type OnboardingState = {
   campus: string;
   groupCode: string;
   groupMode: 'join' | 'create' | 'skip' | null;
-  rent: string;
-  moveIn: string;
-  commuteMode: string;
-  commuteMax: string;
-  listingType: string;
-  bedrooms: string;
-  bathrooms: string;
-  parking: string;
+  budgetMin: number;
+  budgetMax: number;
+  moveIn: MoveInMonth;
+  distanceMiles: number;
+  bedrooms: number;
+  bathrooms: number;
 };
 
-type Option = {
-  label: string;
-  value: string;
-  detail?: string;
-  icon?: Parameters<typeof hiveSymbol>[0];
-};
-
-const steps: { key: OnboardingStep; title: string; subtitle?: string }[] = [
+const steps: { key: OnboardingStep; eyebrow: string; title: string; subtitle?: string }[] = [
   {
     key: 'identity',
+    eyebrow: 'Your search',
     title: 'Start with your search',
     subtitle: 'Choose a username and campus.',
   },
   {
     key: 'group',
+    eyebrow: 'Private group',
     title: 'Add your group',
     subtitle: 'Use a private code or create one.',
   },
   {
     key: 'rent',
-    title: 'Set monthly rent',
-    subtitle: 'Filter by the listing price.',
-  },
-  {
-    key: 'moveIn',
-    title: 'Pick move-in',
-    subtitle: 'A broad window is enough.',
+    eyebrow: 'Budget',
+    title: "What's your budget?",
+    subtitle: 'Set the monthly listing range.',
   },
   {
     key: 'commute',
-    title: 'Choose commute',
-    subtitle: 'Rank listings by your route.',
+    eyebrow: 'Distance to campus',
+    title: 'How close do you want to be?',
+    subtitle: 'We rank homes inside this radius first.',
   },
   {
     key: 'room',
-    title: 'Set room fit',
-    subtitle: 'Stay flexible for more options.',
+    eyebrow: 'The home',
+    title: 'Size and timing',
+    subtitle: 'Set the shape of the place and when you need it.',
   },
   {
     key: 'review',
+    eyebrow: 'Ready',
     title: 'Ready to swipe',
     subtitle: 'Group matches appear after everyone votes.',
   },
-];
-
-const rentOptions: Option[] = [
-  { label: 'No max', value: 'No max', detail: 'Show everything' },
-  { label: '$1,500', value: '$1,500', detail: 'Tight budget' },
-  { label: '$2,000', value: '$2,000', detail: 'Common room range' },
-  { label: '$2,500', value: '$2,500', detail: 'More flexibility' },
-  { label: '$3,000+', value: '$3,000+', detail: 'Show larger units too' },
-];
-
-const moveInOptions: Option[] = [
-  { label: 'ASAP', value: 'ASAP', detail: 'Available now' },
-  { label: 'August', value: 'August', detail: 'Before fall term' },
-  { label: 'September', value: 'September', detail: 'Start of school year' },
-  { label: 'Flexible', value: 'Flexible', detail: 'Keep options open' },
-];
-
-const commuteOptions: Option[] = [
-  { label: 'Walk', value: 'Walk', icon: hiveSymbol({ ios: 'figure.walk', android: 'directions_walk', web: 'directions_walk' }) },
-  { label: 'Bike', value: 'Bike', icon: hiveSymbol({ ios: 'bicycle', android: 'pedal_bike', web: 'pedal_bike' }) },
-  { label: 'Drive', value: 'Drive', icon: hiveSymbol({ ios: 'car.fill', android: 'directions_car', web: 'directions_car' }) },
-  { label: 'Transit', value: 'Transit', icon: hiveSymbol({ ios: 'bus.fill', android: 'directions_bus', web: 'directions_bus' }) },
-];
-
-const commuteMaxOptions: Option[] = [
-  { label: '10 min', value: '10 min' },
-  { label: '15 min', value: '15 min' },
-  { label: '20 min', value: '20 min' },
-  { label: 'Flexible', value: 'Flexible' },
-];
-
-const listingTypeOptions: Option[] = [
-  { label: 'Apartment', value: 'Apartment' },
-  { label: 'Studio', value: 'Studio' },
-  { label: 'Private room', value: 'Private room' },
-  { label: 'Shared room', value: 'Shared room' },
-  { label: 'Flexible', value: 'Flexible' },
-];
-
-const bedroomOptions: Option[] = [
-  { label: 'Studio', value: 'Studio' },
-  { label: '1', value: '1' },
-  { label: '2', value: '2' },
-  { label: '3', value: '3' },
-  { label: '4+', value: '4+' },
-  { label: 'Flexible', value: 'Flexible' },
-];
-
-const bathroomOptions: Option[] = [
-  { label: '1+', value: '1+' },
-  { label: '2+', value: '2+' },
-  { label: 'Flexible', value: 'Flexible' },
-];
-
-const parkingOptions: Option[] = [
-  { label: 'Needed', value: 'Needed', detail: 'Only listings with parking' },
-  { label: 'Nice to have', value: 'Nice to have', detail: 'Boost, don\'t filter' },
-  { label: 'No preference', value: 'No preference', detail: 'Ignore parking' },
 ];
 
 const initialState: OnboardingState = {
@@ -140,14 +80,12 @@ const initialState: OnboardingState = {
   campus: 'UCLA',
   groupCode: '',
   groupMode: null,
-  rent: '$2,500',
-  moveIn: 'August',
-  commuteMode: 'Walk',
-  commuteMax: '20 min',
-  listingType: 'Apartment',
-  bedrooms: '2',
-  bathrooms: '1+',
-  parking: 'Nice to have',
+  budgetMin: 600,
+  budgetMax: 1550,
+  moveIn: 'Aug',
+  distanceMiles: 1.25,
+  bedrooms: 3,
+  bathrooms: 1,
 };
 
 export default function OnboardingScreen() {
@@ -159,7 +97,6 @@ export default function OnboardingScreen() {
   const [fade] = useState(() => new Animated.Value(1));
   const [translate] = useState(() => new Animated.Value(0));
   const step = steps[stepIndex];
-  const progress = (stepIndex + 1) / steps.length;
   const canContinue = useMemo(() => {
     if (step.key === 'identity') return state.username.trim().length >= 2 && state.campus.trim().length >= 2;
     if (step.key === 'group') return Boolean(state.groupMode) || state.groupCode.trim().length > 0;
@@ -209,50 +146,90 @@ export default function OnboardingScreen() {
   };
 
   return (
-    <Screen contentStyle={styles.screen}>
-      <View style={styles.top}>
-        <IconButton
-          icon={hiveSymbol({ ios: 'chevron.left', android: 'arrow_back', web: 'arrow_back' })}
-          label="Back"
-          size="sm"
-          onPress={goBack}
-        />
-        <View style={[styles.progressTrack, { backgroundColor: theme.backgroundElement }]}>
-          <View style={[styles.progressFill, { width: `${progress * 100}%`, backgroundColor: theme.primary }]} />
-        </View>
-        <ThemedText type="caption" themeColor="textTertiary">
-          {stepIndex + 1}/{steps.length}
-        </ThemedText>
+    <SafeAreaView style={[styles.root, { backgroundColor: theme.background }]}>
+      <View pointerEvents="none" style={styles.textureLayer}>
+        {textureRows.map((row) => (
+          <View
+            key={row}
+            style={[
+              styles.textureLine,
+              {
+                top: row,
+                backgroundColor: theme.border,
+              },
+            ]}
+          />
+        ))}
       </View>
-
-      <View style={styles.headerCopy}>
-        <ThemedText type="title" style={styles.title}>
-          {step.title}
-        </ThemedText>
-        {step.subtitle ? (
-          <ThemedText type="small" themeColor="textSecondary" style={styles.subtitle}>
-            {step.subtitle}
+      <View style={styles.screen}>
+        <View style={styles.top}>
+          <IconButton
+            icon={hiveSymbol({ ios: 'chevron.left', android: 'arrow_back', web: 'arrow_back' })}
+            label="Back"
+            size="sm"
+            onPress={goBack}
+          />
+          <View style={styles.progressBubbles}>
+            {steps.map((item, index) => (
+              <View
+                key={item.key}
+                style={[
+                  styles.progressBubble,
+                  {
+                    backgroundColor: index <= stepIndex ? theme.primary : theme.backgroundElement,
+                    opacity: index === stepIndex || index < stepIndex ? 1 : 0.82,
+                  },
+                ]}
+              />
+            ))}
+          </View>
+          <ThemedText type="caption" themeColor="textTertiary">
+            {stepIndex + 1}/{steps.length}
           </ThemedText>
-        ) : null}
+        </View>
+
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}>
+          <View style={styles.headerCopy}>
+            <ThemedText type="label" themeColor="textTertiary">
+              {step.eyebrow}
+            </ThemedText>
+            <ThemedText type="title" style={styles.title}>
+              {step.title}
+            </ThemedText>
+            {step.subtitle ? (
+              <ThemedText type="small" themeColor="textSecondary" style={styles.subtitle}>
+                {step.subtitle}
+              </ThemedText>
+            ) : null}
+          </View>
+
+          <Animated.View
+            style={[
+              styles.body,
+              {
+                opacity: fade,
+                transform: [{ translateY: translate }],
+              },
+            ]}>
+            {renderStep(step.key, state, update)}
+          </Animated.View>
+        </ScrollView>
+
+        <View style={[styles.footer, { backgroundColor: theme.background, borderTopColor: theme.border }]}>
+          <PrimaryAction disabled={!canContinue} onPress={goNext}>
+            {stepIndex === steps.length - 1 ? 'Start swiping' : 'Continue'}
+          </PrimaryAction>
+        </View>
       </View>
-
-      <Animated.View
-        style={[
-          styles.body,
-          {
-            opacity: fade,
-            transform: [{ translateY: translate }],
-          },
-      ]}>
-        {renderStep(step.key, state, update)}
-      </Animated.View>
-
-      <PrimaryAction disabled={!canContinue} onPress={goNext}>
-        {stepIndex === steps.length - 1 ? 'Start swiping' : 'Continue'}
-      </PrimaryAction>
-    </Screen>
+    </SafeAreaView>
   );
 }
+
+const textureRows = [104, 188, 272, 356, 440, 524, 608, 692, 776];
 
 function renderStep(
   step: OnboardingStep,
@@ -320,101 +297,32 @@ function renderStep(
       );
     case 'rent':
       return (
-        <View style={styles.stage}>
-          <OptionGrid
-            options={rentOptions}
-            value={state.rent}
-            onChange={(value) => update('rent', value)}
-          />
-        </View>
-      );
-    case 'moveIn':
-      return (
-        <View style={styles.stage}>
-          <OptionGrid
-            options={moveInOptions}
-            value={state.moveIn}
-            onChange={(value) => update('moveIn', value)}
-          />
-        </View>
+        <BudgetRangeStage
+          min={state.budgetMin}
+          max={state.budgetMax}
+          onChange={(min, max) => {
+            update('budgetMin', min);
+            update('budgetMax', max);
+          }}
+        />
       );
     case 'commute':
       return (
-        <View style={styles.stage}>
-          <OptionGrid
-            options={commuteOptions}
-            value={state.commuteMode}
-            onChange={(value) => update('commuteMode', value)}
-          />
-          <View style={styles.subsection}>
-            <ThemedText type="label" themeColor="textTertiary">
-              Max commute
-            </ThemedText>
-            <OptionGrid
-              options={commuteMaxOptions}
-              value={state.commuteMax}
-              onChange={(value) => update('commuteMax', value)}
-              compact
-            />
-          </View>
-        </View>
+        <CampusRadiusStage
+          miles={state.distanceMiles}
+          onChange={(value) => update('distanceMiles', value)}
+        />
       );
     case 'room':
       return (
-        <View style={styles.stage}>
-          <View style={styles.subsection}>
-            <ThemedText type="label" themeColor="textTertiary">
-              Listing type
-            </ThemedText>
-            <OptionGrid
-              options={listingTypeOptions}
-              value={state.listingType}
-              onChange={(value) => update('listingType', value)}
-              compact
-            />
-          </View>
-          <View style={styles.split}>
-            <View style={styles.splitColumn}>
-              <ThemedText type="label" themeColor="textTertiary">
-                Bedrooms
-              </ThemedText>
-              <OptionGrid
-                options={bedroomOptions}
-                value={state.bedrooms}
-                onChange={(value) => update('bedrooms', value)}
-                compact
-              />
-            </View>
-            <View style={styles.splitColumn}>
-              <ThemedText type="label" themeColor="textTertiary">
-                Bathrooms
-              </ThemedText>
-              <OptionGrid
-                options={bathroomOptions}
-                value={state.bathrooms}
-                onChange={(value) => update('bathrooms', value)}
-                compact
-              />
-            </View>
-          </View>
-          <View style={styles.subsection}>
-            <ThemedText type="label" themeColor="textTertiary">
-              Parking
-            </ThemedText>
-            <View style={styles.optionStack}>
-              {parkingOptions.map((option) => (
-                <OptionRow
-                  key={option.value}
-                  label={option.label}
-                  detail={option.detail}
-                  selected={state.parking === option.value}
-                  onPress={() => update('parking', option.value)}
-                  icon={hiveSymbol({ ios: 'parkingsign.circle.fill', android: 'local_parking', web: 'local_parking' })}
-                />
-              ))}
-            </View>
-          </View>
-        </View>
+        <HomeSetupStage
+          bedrooms={state.bedrooms}
+          bathrooms={state.bathrooms}
+          moveIn={state.moveIn}
+          onBedroomsChange={(value) => update('bedrooms', value)}
+          onBathroomsChange={(value) => update('bathrooms', value)}
+          onMoveInChange={(value) => update('moveIn', value)}
+        />
       );
     case 'review':
       return <ReviewStage state={state} />;
@@ -456,34 +364,6 @@ function LargeInput({
           },
         ]}
       />
-    </View>
-  );
-}
-
-function OptionGrid({
-  options,
-  value,
-  onChange,
-  compact,
-}: {
-  options: Option[];
-  value: string;
-  onChange: (value: string) => void;
-  compact?: boolean;
-}) {
-  return (
-    <View style={[styles.optionGrid, compact && styles.optionGridCompact]}>
-      {options.map((option) => (
-        <OptionRow
-          key={option.value}
-          label={option.label}
-          detail={option.detail}
-          icon={option.icon}
-          selected={value === option.value}
-          onPress={() => onChange(option.value)}
-          compact={compact}
-        />
-      ))}
     </View>
   );
 }
@@ -566,14 +446,25 @@ function ReviewStage({ state }: { state: OnboardingState }) {
       </View>
       <View style={styles.reviewList}>
         <ReviewItem label="Group" value={groupLabel} />
-        <ReviewItem label="Rent" value={state.rent} />
-        <ReviewItem label="Move-in" value={state.moveIn} />
-        <ReviewItem label="Commute" value={`${state.commuteMode}, ${state.commuteMax}`} />
-        <ReviewItem label="Room" value={`${state.listingType}, ${state.bedrooms} bed, ${state.bathrooms} bath`} />
-        <ReviewItem label="Parking" value={state.parking} />
+        <ReviewItem label="Budget" value={formatBudgetRange(state.budgetMin, state.budgetMax)} />
+        <ReviewItem label="Radius" value={`${formatMiles(state.distanceMiles)} mi from UCLA`} />
+        <ReviewItem label="Move-in" value={`${state.moveIn} 2026`} />
+        <ReviewItem label="Room" value={`${formatBedrooms(state.bedrooms)}, ${state.bathrooms} bath`} />
       </View>
     </View>
   );
+}
+
+function formatBudgetRange(min: number, max: number) {
+  return `$${min.toLocaleString('en-US')} - $${max.toLocaleString('en-US')}`;
+}
+
+function formatMiles(value: number) {
+  return Number.isInteger(value) ? String(value) : value.toFixed(1);
+}
+
+function formatBedrooms(value: number) {
+  return value === 0 ? 'Studio' : `${value} bed`;
 }
 
 function ReviewItem({ label, value }: { label: string; value: string }) {
@@ -624,39 +515,68 @@ function PrimaryAction({
 }
 
 const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+  },
+  textureLayer: {
+    ...StyleSheet.absoluteFill,
+    overflow: 'hidden',
+  },
+  textureLine: {
+    position: 'absolute',
+    left: -24,
+    right: -24,
+    height: StyleSheet.hairlineWidth,
+    opacity: 0.16,
+    transform: [{ rotate: '-2deg' }],
+  },
   screen: {
+    flex: 1,
     width: '100%',
     maxWidth: 560,
     alignSelf: 'center',
-    paddingTop: Spacing.two,
-    paddingBottom: Spacing.six,
   },
   top: {
     minHeight: 42,
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.three,
+    paddingHorizontal: Spacing.three,
+    paddingTop: Spacing.two,
+    paddingBottom: Spacing.two,
   },
-  progressTrack: {
+  progressBubbles: {
+    flex: 1,
+    minHeight: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  progressBubble: {
     flex: 1,
     height: 8,
-    borderRadius: Radius.pill,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
     borderRadius: Radius.pill,
   },
   body: {
     gap: Spacing.four,
   },
+  scroll: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    gap: Spacing.four,
+    paddingHorizontal: Spacing.three,
+    paddingTop: Spacing.two,
+    paddingBottom: Spacing.five,
+  },
   headerCopy: {
     gap: Spacing.one,
   },
   title: {
-    maxWidth: 390,
-    fontSize: 34,
-    lineHeight: 39,
+    maxWidth: 430,
+    fontSize: 36,
+    lineHeight: 41,
   },
   subtitle: {
     maxWidth: 360,
@@ -677,17 +597,6 @@ const styles = StyleSheet.create({
   stage: {
     gap: Spacing.four,
   },
-  subsection: {
-    gap: Spacing.two,
-  },
-  split: {
-    flexDirection: 'row',
-    gap: Spacing.three,
-  },
-  splitColumn: {
-    flex: 1,
-    gap: Spacing.two,
-  },
   largeInputWrap: {
     gap: Spacing.two,
   },
@@ -701,12 +610,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   optionStack: {
-    gap: Spacing.two,
-  },
-  optionGrid: {
-    gap: Spacing.two,
-  },
-  optionGridCompact: {
     gap: Spacing.two,
   },
   option: {
@@ -773,6 +676,12 @@ const styles = StyleSheet.create({
     gap: Spacing.half,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(142, 118, 148, 0.35)',
+  },
+  footer: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: Spacing.three,
+    paddingTop: Spacing.two,
+    paddingBottom: Spacing.three,
   },
   primaryAction: {
     minHeight: 54,
