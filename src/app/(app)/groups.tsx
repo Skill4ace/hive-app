@@ -6,11 +6,11 @@ import { AppSection, AppTopBar, SurfacePanel } from '@/components/hive/app-shell
 import { GroupConsensusRow, type Listing } from '@/components/hive/listing';
 import {
   Button,
+  BottomSheet,
   EmptyState,
   FormField,
   IconButton,
   IconGlyph,
-  Pill,
   Screen,
   Skeleton,
   hiveSymbol,
@@ -29,13 +29,13 @@ export default function GroupsScreen() {
     authUserId,
     members,
     loading,
-    syncing,
     error,
     outcomes,
     matchedOutcomes,
     partialOutcomes,
     createGroup,
     joinGroup,
+    renameGroup,
     leaveGroup,
     removeMember,
     refresh,
@@ -43,6 +43,8 @@ export default function GroupsScreen() {
   const [inviteCode, setInviteCode] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [membersExpanded, setMembersExpanded] = useState(false);
+  const [renameVisible, setRenameVisible] = useState(false);
+  const [renameName, setRenameName] = useState('');
   const compactError = error ? readGroupErrorCopy(error) : null;
   const listingIds = useMemo(() => outcomes.map((outcome) => outcome.propertyId), [outcomes]);
   const { data: listings, loading: listingsLoading } = useSavedRealListings(listingIds);
@@ -51,6 +53,11 @@ export default function GroupsScreen() {
     [listings],
   );
   const isOwner = Boolean(group && authUserId === group.ownerId);
+  const inviteCodeDisplay = readInviteCodeDisplay(group?.inviteCode);
+  const normalizedRenameName = normalizeGroupName(renameName);
+  const renameError = renameVisible ? readGroupNameError(normalizedRenameName) : null;
+  const canSaveRename =
+    Boolean(group) && !submitting && !renameError && normalizedRenameName !== normalizeGroupName(group?.name ?? '');
 
   const runGroupAction = async (action: () => Promise<void>) => {
     setSubmitting(true);
@@ -90,6 +97,24 @@ export default function GroupsScreen() {
     ]);
   };
 
+  const openRenameSheet = () => {
+    if (!group) return;
+    setRenameName(group.name);
+    setRenameVisible(true);
+  };
+
+  const closeRenameSheet = () => {
+    if (submitting) return;
+    setRenameVisible(false);
+  };
+
+  const submitRename = async () => {
+    if (!canSaveRename) return;
+
+    await runGroupAction(() => renameGroup(normalizedRenameName));
+    setRenameVisible(false);
+  };
+
   return (
     <Screen contentStyle={styles.screen}>
       <AppTopBar
@@ -120,23 +145,37 @@ export default function GroupsScreen() {
                 />
               </View>
               <View style={styles.heroCopy}>
-                <ThemedText type="sectionTitle" numberOfLines={1}>
-                  {group.name}
-                </ThemedText>
+                <View style={styles.groupNameRow}>
+                  <ThemedText type="sectionTitle" numberOfLines={1} style={styles.groupNameText}>
+                    {group.name}
+                  </ThemedText>
+                  {isOwner ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Rename group"
+                      disabled={submitting}
+                      onPress={openRenameSheet}
+                      style={({ pressed }) => [
+                        styles.renameButton,
+                        { opacity: submitting ? 0.42 : pressed ? 0.72 : 1 },
+                      ]}>
+                      <IconGlyph
+                        name={hiveSymbol({ ios: 'pencil', android: 'edit', web: 'edit' })}
+                        color={theme.primary}
+                        size={15}
+                      />
+                    </Pressable>
+                  ) : null}
+                </View>
                 <ThemedText type="caption" themeColor="textSecondary">
                   {members.length} {members.length === 1 ? 'member' : 'members'} · {group.campusName}
                 </ThemedText>
               </View>
-              <Pill tone={syncing ? 'warning' : 'primary'}>{syncing ? 'Syncing' : 'Live'}</Pill>
-            </View>
-
-            <View style={[styles.codeBox, { backgroundColor: theme.backgroundElement }]}>
-              <ThemedText type="label" themeColor="textTertiary">
-                Code
-              </ThemedText>
-              <ThemedText selectable type="subtitle" style={styles.codeText}>
-                {group.inviteCode ?? 'Loading'}
-              </ThemedText>
+              <View style={[styles.inlineCodeBox, { backgroundColor: theme.backgroundElement }]}>
+                <ThemedText type="subtitle" numberOfLines={1} style={styles.inlineCodeText}>
+                  {inviteCodeDisplay}
+                </ThemedText>
+              </View>
             </View>
 
             <View style={[styles.memberDivider, { backgroundColor: theme.border }]} />
@@ -288,6 +327,29 @@ export default function GroupsScreen() {
           </SurfacePanel>
         </>
       )}
+
+      <BottomSheet
+        visible={renameVisible}
+        title="Rename group"
+        onClose={closeRenameSheet}
+        footer={
+          <View style={styles.sheetActions}>
+            <Button variant="secondary" disabled={submitting} onPress={closeRenameSheet}>
+              Cancel
+            </Button>
+            <Button disabled={!canSaveRename} onPress={() => void submitRename()}>
+              Save
+            </Button>
+          </View>
+        }>
+        <FormField
+          label="Group name"
+          value={renameName}
+          placeholder="Apartment hunt"
+          onChangeText={setRenameName}
+          error={renameError ?? undefined}
+        />
+      </BottomSheet>
     </Screen>
   );
 }
@@ -302,6 +364,22 @@ function readGroupErrorCopy(error: string) {
 
 function normalizeInviteInput(value: string) {
   return value.replace(/[^a-z]/gi, '').toUpperCase().slice(0, 4);
+}
+
+function normalizeGroupName(value: string) {
+  return value.trim().replace(/\s+/g, ' ');
+}
+
+function readGroupNameError(value: string) {
+  if (value.length < 2) return 'Use at least 2 characters.';
+  if (value.length > 40) return 'Keep it under 40 characters.';
+  return null;
+}
+
+function readInviteCodeDisplay(value: string | null | undefined) {
+  const normalized = (value ?? '').replace(/[^a-z]/gi, '').toUpperCase();
+  if (!normalized) return '....';
+  return normalized.slice(-4);
 }
 
 function OutcomeList({
@@ -321,7 +399,7 @@ function OutcomeList({
   const hasPartial = partialOutcomes.length > 0;
 
   return (
-    <AppSection title="Shared list">
+    <AppSection title="Matches">
       {loading ? (
         <View style={styles.stack}>
           <Skeleton height={112} radius={Radius.xl} />
@@ -335,8 +413,11 @@ function OutcomeList({
         />
       ) : (
         <View style={styles.stack}>
-          {hasMatches ? <OutcomeRows title="Matches" outcomes={matchedOutcomes} listingsById={listingsById} onOpenListing={onOpenListing} /> : null}
-          {hasPartial ? <OutcomeRows title="Still deciding" outcomes={partialOutcomes} listingsById={listingsById} onOpenListing={onOpenListing} /> : null}
+          <OutcomeRows
+            outcomes={[...matchedOutcomes, ...partialOutcomes]}
+            listingsById={listingsById}
+            onOpenListing={onOpenListing}
+          />
         </View>
       )}
     </AppSection>
@@ -344,40 +425,33 @@ function OutcomeList({
 }
 
 function OutcomeRows({
-  title,
   outcomes,
   listingsById,
   onOpenListing,
 }: {
-  title: string;
   outcomes: GroupOutcome[];
   listingsById: Record<string, Listing>;
   onOpenListing: (id: string) => void;
 }) {
   return (
-    <View style={styles.outcomeGroup}>
-      <ThemedText type="label" themeColor="textTertiary">
-        {title}
-      </ThemedText>
-      <View style={styles.stack}>
-        {outcomes.map((outcome) => {
-          const listing = listingsById[outcome.propertyId];
-          if (!listing) return null;
+    <View style={styles.stack}>
+      {outcomes.map((outcome) => {
+        const listing = listingsById[outcome.propertyId];
+        if (!listing) return null;
 
-          return (
-            <GroupConsensusRow
-              key={outcome.propertyId}
-              listing={listing}
-              status={outcome.status === 'matched' ? 'matched' : 'discussing'}
-              likes={`${outcome.likes}/${outcome.members.length}`}
-              people={outcome.members
-                .filter((member) => member.decision === 'liked')
-                .map((member) => ({ name: member.name }))}
-              onPress={() => onOpenListing(outcome.propertyId)}
-            />
-          );
-        })}
-      </View>
+        return (
+          <GroupConsensusRow
+            key={outcome.propertyId}
+            listing={listing}
+            status={outcome.status === 'matched' ? 'matched' : 'discussing'}
+            likes={`${outcome.likes}/${outcome.members.length}`}
+            people={outcome.members
+              .filter((member) => member.decision === 'liked')
+              .map((member) => ({ name: member.name }))}
+            onPress={() => onOpenListing(outcome.propertyId)}
+          />
+        );
+      })}
     </View>
   );
 }
@@ -416,24 +490,40 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: Spacing.one,
   },
+  groupNameRow: {
+    minHeight: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
+  },
+  groupNameText: {
+    flexShrink: 1,
+  },
+  renameButton: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   emptyCopy: {
     gap: Spacing.one,
   },
   centerText: {
     textAlign: 'center',
   },
-  codeBox: {
-    minHeight: 54,
+  inlineCodeBox: {
+    width: 92,
+    minHeight: 44,
     borderRadius: Radius.lg,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
-    flexDirection: 'row',
+    flexShrink: 0,
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: Spacing.two,
+    justifyContent: 'center',
   },
-  codeText: {
+  inlineCodeText: {
     letterSpacing: 0,
+    lineHeight: 24,
+    textAlign: 'center',
   },
   memberDivider: {
     height: 1,
@@ -476,8 +566,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  outcomeGroup: {
+  sheetActions: {
+    flexDirection: 'row',
     gap: Spacing.two,
+    alignItems: 'center',
+    justifyContent: 'flex-end',
   },
   errorBox: {
     borderRadius: Radius.lg,

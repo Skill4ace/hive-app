@@ -84,6 +84,7 @@ type HiveGroupContextValue = {
   outcomesByListing: Record<string, GroupOutcome>;
   createGroup: (nextPreferences?: Partial<SearchPreferences>) => Promise<void>;
   joinGroup: (inviteCode: string, nextPreferences?: Partial<SearchPreferences>) => Promise<void>;
+  renameGroup: (name: string) => Promise<void>;
   leaveGroup: () => Promise<void>;
   removeMember: (memberUserId: string) => Promise<void>;
   refresh: () => Promise<void>;
@@ -368,6 +369,36 @@ export function HiveGroupProvider({ children }: { children: ReactNode }) {
     [ensureSession, loadGroup, preferences],
   );
 
+  const renameGroup = useCallback(
+    async (name: string) => {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const user = await ensureSession();
+        setAuthUserId(user.id);
+        setAuthReady(true);
+
+        const supabase = getSupabaseClient();
+        const { error: renameError } = await supabase.rpc('rename_active_group', {
+          new_name: name,
+        });
+
+        if (renameError) {
+          throw new Error(`Unable to rename group: ${renameError.message}`);
+        }
+
+        await loadGroup();
+      } catch (nextError) {
+        setError(readErrorMessage(nextError));
+        throw nextError;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [ensureSession, loadGroup],
+  );
+
   const leaveGroup = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -485,6 +516,7 @@ export function HiveGroupProvider({ children }: { children: ReactNode }) {
       outcomesByListing,
       createGroup,
       joinGroup,
+      renameGroup,
       leaveGroup,
       removeMember,
       refresh,
@@ -505,6 +537,7 @@ export function HiveGroupProvider({ children }: { children: ReactNode }) {
       outcomes,
       outcomesByListing,
       partialOutcomes,
+      renameGroup,
       removeMember,
       refresh,
       syncing,

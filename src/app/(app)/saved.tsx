@@ -1,29 +1,17 @@
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { AppTopBar } from '@/components/hive/app-shell';
-import { GroupConsensusRow, SavedListingRow } from '@/components/hive/listing';
-import { Button, EmptyState, IconButton, Screen, SegmentedControl, Skeleton, hiveSymbol } from '@/components/hive/primitives';
+import { SavedListingRow } from '@/components/hive/listing';
+import { Button, EmptyState, IconButton, Screen, Skeleton, hiveSymbol } from '@/components/hive/primitives';
 import { Spacing } from '@/constants/theme';
 import { useSavedRealListings } from '@/hooks/use-real-listings';
-import { useHiveGroup } from '@/lib/group-state';
 import { useHiveAppState } from '@/lib/hive-state';
-
-type SavedTab = 'all' | 'matched';
-
-const options: { label: string; value: SavedTab }[] = [
-  { label: 'All', value: 'all' },
-  { label: 'Matched', value: 'matched' },
-];
 
 export default function SavedScreen() {
   const router = useRouter();
   const { likedIds } = useHiveAppState();
-  const { group, matchedIds, outcomesByListing } = useHiveGroup();
-  const [tab, setTab] = useState<SavedTab>('all');
-  const listingIds = tab === 'all' ? likedIds : matchedIds;
-  const { data: visibleListings, loading, error, refresh } = useSavedRealListings(listingIds);
+  const { data: visibleListings, loading, error, refresh } = useSavedRealListings(likedIds);
 
   return (
     <Screen contentStyle={styles.screen}>
@@ -36,7 +24,6 @@ export default function SavedScreen() {
           />
         }
       />
-      <SegmentedControl options={options} value={tab} onChange={setTab} />
 
       {loading ? (
         <View style={styles.list}>
@@ -53,45 +40,20 @@ export default function SavedScreen() {
         />
       ) : visibleListings.length === 0 ? (
         <EmptyState
-          icon={hiveSymbol({ ios: tab === 'all' ? 'heart' : 'sparkles', android: tab === 'all' ? 'favorite_border' : 'auto_awesome', web: tab === 'all' ? 'favorite_border' : 'auto_awesome' })}
-          title={tab === 'all' ? 'No saved places yet' : 'No group matches yet'}
-          body={
-            tab === 'all'
-              ? 'Like a place in Discover and it will show up here.'
-              : group
-                ? 'When everyone likes the same place, it will show up here.'
-                : 'Create or join a group first.'
-          }
-          action={
-            <Button onPress={() => router.push(tab === 'all' || group ? '/discover' : '/groups')}>
-              {tab === 'all' || group ? 'Discover' : 'Groups'}
-            </Button>
-          }
+          icon={hiveSymbol({ ios: 'heart', android: 'favorite_border', web: 'favorite_border' })}
+          title="No saved places yet"
+          body="Like a place in Discover and it will show up here."
+          action={<Button onPress={() => router.push('/discover')}>Discover</Button>}
         />
       ) : (
         <View style={styles.list}>
-          {visibleListings.map((listing) => {
-            const outcome = outcomesByListing[listing.id];
-
-            return tab === 'matched' && outcome ? (
-              <GroupConsensusRow
-                key={listing.id}
-                listing={listing}
-                status="matched"
-                likes={`${outcome.likes}/${outcome.members.length}`}
-                people={outcome.members
-                  .filter((member) => member.decision === 'liked')
-                  .map((member) => ({ name: member.name }))}
-                onPress={() => router.push({ pathname: '/listing/[id]', params: { id: listing.id } })}
-              />
-            ) : (
-              <SavedListingRow
-                key={listing.id}
-                listing={listing}
-                onPress={() => router.push({ pathname: '/listing/[id]', params: { id: listing.id } })}
-              />
-            );
-          })}
+          {visibleListings.map((listing) => (
+            <SavedListingRow
+              key={listing.id}
+              listing={listing}
+              onPress={() => router.push({ pathname: '/listing/[id]', params: { id: listing.id } })}
+            />
+          ))}
         </View>
       )}
     </Screen>
