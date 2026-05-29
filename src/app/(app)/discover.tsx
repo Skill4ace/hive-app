@@ -25,12 +25,14 @@ import { Button, EmptyState, IconButton, Screen, Skeleton, hiveSymbol } from '@/
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { useRealListings } from '@/hooks/use-real-listings';
+import { useHiveGroup } from '@/lib/group-state';
 import { useHiveAppState, type ListingDecision } from '@/lib/hive-state';
 
 export default function DiscoverScreen() {
   const router = useRouter();
   const { height, width } = useWindowDimensions();
-  const { decisions, recordDecision, undoDecision } = useHiveAppState();
+  const { decisions, history, recordDecision, undoDecision } = useHiveAppState();
+  const { deleteSyncedDecision } = useHiveGroup();
   const { data: listings, loading, error, refresh } = useRealListings();
   const [deck, setDeck] = useState<Listing[]>([]);
   const [photoIndexes, setPhotoIndexes] = useState<Record<string, number>>({});
@@ -147,7 +149,11 @@ export default function DiscoverScreen() {
 
   const undo = () => {
     if (isTransitioning) return;
+    const latest = history[0];
     undoDecision();
+    if (latest && !latest.previous) {
+      void deleteSyncedDecision(latest.listingId);
+    }
   };
 
   const openDetail = () => {

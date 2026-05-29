@@ -14,6 +14,7 @@ import { IconButton, IconGlyph, hiveSymbol } from '@/components/hive/primitives'
 import { ThemedText } from '@/components/themed-text';
 import { Fonts, Radius, Shadows, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { useHiveGroup } from '@/lib/group-state';
 import { useHiveAppState, type SearchPreferences } from '@/lib/hive-state';
 
 type OnboardingStep =
@@ -94,8 +95,10 @@ export default function OnboardingScreen() {
   const { preview } = useLocalSearchParams<{ preview?: string }>();
   const theme = useTheme();
   const { preferences, updatePreferences } = useHiveAppState();
+  const { createGroup, joinGroup } = useHiveGroup();
   const [state, setState] = useState<OnboardingState>(() => stateFromPreferences(preferences));
   const [stepIndex, setStepIndex] = useState(0);
+  const [submitting, setSubmitting] = useState(false);
   const [fade] = useState(() => new Animated.Value(1));
   const [translate] = useState(() => new Animated.Value(0));
   const step = steps[stepIndex];
@@ -126,10 +129,11 @@ export default function OnboardingScreen() {
     setState((current) => ({ ...current, [key]: value }));
   };
 
-  const goNext = () => {
-    if (!canContinue) return;
+  const goNext = async () => {
+    if (!canContinue || submitting) return;
     if (stepIndex === steps.length - 1) {
-      updatePreferences({
+      setSubmitting(true);
+      const nextPreferences = {
         username: state.username.trim(),
         campusName: state.campus.trim().toUpperCase(),
         campusSlug: state.campus.trim().toLowerCase(),
@@ -139,8 +143,21 @@ export default function OnboardingScreen() {
         distanceMiles: state.distanceMiles,
         bedrooms: state.bedrooms,
         bathrooms: state.bathrooms,
-      });
-      router.replace('/discover');
+      };
+
+      updatePreferences(nextPreferences);
+
+      try {
+        if (state.groupMode === 'create') {
+          await createGroup(nextPreferences);
+        } else if (state.groupMode === 'join' && state.groupCode.trim()) {
+          await joinGroup(state.groupCode, nextPreferences);
+        }
+
+        router.replace('/discover');
+      } finally {
+        setSubmitting(false);
+      }
       return;
     }
     setStepIndex((current) => current + 1);
@@ -233,8 +250,8 @@ export default function OnboardingScreen() {
         </ScrollView>
 
         <View style={[styles.footer, { backgroundColor: theme.background, borderTopColor: theme.border }]}>
-          <PrimaryAction disabled={!canContinue} onPress={goNext}>
-            {stepIndex === steps.length - 1 ? 'Start swiping' : 'Continue'}
+          <PrimaryAction disabled={!canContinue || submitting} onPress={goNext}>
+            {submitting ? 'Saving' : stepIndex === steps.length - 1 ? 'Start swiping' : 'Continue'}
           </PrimaryAction>
         </View>
       </View>
@@ -290,7 +307,7 @@ function renderStep(
           <LargeInput
             label="Group code"
             value={state.groupCode}
-            placeholder="HIVE-204"
+            placeholder="HIVE-A1B2C3"
             onChangeText={(value) => {
               update('groupCode', value.toUpperCase());
               update('groupMode', value.trim().length > 0 ? 'join' : null);

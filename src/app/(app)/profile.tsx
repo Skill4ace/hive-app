@@ -6,11 +6,13 @@ import { Button, Pill, Screen, hiveSymbol } from '@/components/hive/primitives';
 import { PreferenceSummary } from '@/components/hive/listing';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
+import { useHiveGroup } from '@/lib/group-state';
 import { useHiveAppState } from '@/lib/hive-state';
 
 export default function ProfileScreen() {
   const router = useRouter();
   const { preferences, likedIds, passedIds, clearDecision } = useHiveAppState();
+  const { group, members, deleteSyncedDecision } = useHiveGroup();
   const clearMatches = () => {
     if (likedIds.length === 0) return;
 
@@ -22,7 +24,12 @@ export default function ProfileScreen() {
         {
           text: 'Clear',
           style: 'destructive',
-          onPress: () => likedIds.forEach((id) => clearDecision(id)),
+          onPress: () => {
+            likedIds.forEach((id) => {
+              clearDecision(id);
+              void deleteSyncedDecision(id);
+            });
+          },
         },
       ],
     );
@@ -88,7 +95,7 @@ export default function ProfileScreen() {
             {likedIds.length} saved, {passedIds.length} passed
           </ThemedText>
         </View>
-        <Pill tone="primary">Solo feed</Pill>
+        <Pill tone="primary">{group ? 'Group feed' : 'Solo feed'}</Pill>
       </View>
 
       <AppSection title="Search setup">
@@ -104,9 +111,9 @@ export default function ProfileScreen() {
           <SettingRow
             icon={hiveSymbol({ ios: 'person.2.fill', android: 'group', web: 'group' })}
             title="Private group"
-            subtitle="Create a group or join with an invite code"
-            value="Not joined"
-            onPress={() => router.push({ pathname: '/onboarding', params: { preview: '1' } })}
+            subtitle={group ? `${members.length} ${members.length === 1 ? 'member' : 'members'} · ${group.inviteCode ?? 'Invite code'}` : 'Create a group or join with an invite code'}
+            value={group ? 'Joined' : 'Not joined'}
+            onPress={() => router.push('/groups')}
           />
         </SurfacePanel>
       </AppSection>

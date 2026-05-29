@@ -1,6 +1,7 @@
 import 'react-native-url-polyfill/auto';
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import Storage from 'expo-sqlite/kv-store';
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const supabasePublishableKey = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
@@ -27,8 +28,9 @@ export function getSupabaseClient() {
   if (!client) {
     client = createClient(url, publishableKey, {
       auth: {
-        persistSession: false,
-        autoRefreshToken: false,
+        storage: Storage,
+        persistSession: true,
+        autoRefreshToken: true,
         detectSessionInUrl: false,
       },
     });

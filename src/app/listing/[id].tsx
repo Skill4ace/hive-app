@@ -12,6 +12,7 @@ import { Radius, Shadows, Spacing } from '@/constants/theme';
 import { formatMoney, formatMoveIn } from '@/data/real-listings';
 import { useRealListingDetail } from '@/hooks/use-real-listings';
 import { useTheme } from '@/hooks/use-theme';
+import { useHiveGroup } from '@/lib/group-state';
 import { useHiveAppState } from '@/lib/hive-state';
 
 export default function ListingDetailScreen() {
@@ -21,6 +22,7 @@ export default function ListingDetailScreen() {
   const theme = useTheme();
   const { width } = useWindowDimensions();
   const { decisions, recordDecision, clearDecision } = useHiveAppState();
+  const { group, members, outcomesByListing, deleteSyncedDecision } = useHiveGroup();
   const { data: detail, loading, error, refresh } = useRealListingDetail(listingId);
   const [photoIndex, setPhotoIndex] = useState(0);
   const listing = detail?.listing;
@@ -82,6 +84,7 @@ export default function ListingDetailScreen() {
   const saveListing = () => {
     if (isSaved) {
       clearDecision(listing.id);
+      void deleteSyncedDecision(listing.id);
       return;
     }
 
@@ -178,6 +181,46 @@ export default function ListingDetailScreen() {
           ))}
         </View>
       </AppSection>
+
+      {group ? (
+        <AppSection title="Group pulse">
+          <SurfacePanel>
+            <SettingRow
+              icon={hiveSymbol({ ios: 'person.2.fill', android: 'groups', web: 'groups' })}
+              title={group.name}
+              subtitle={readGroupOutcomeLabel(outcomesByListing[listing.id], members.length)}
+              value={outcomesByListing[listing.id]?.status === 'matched' ? 'Matched' : 'Voting'}
+            />
+            {readMemberVotes(outcomesByListing[listing.id], members).map((member) => (
+              <SettingRow
+                key={member.userId}
+                icon={hiveSymbol({
+                  ios:
+                    member.decision === 'liked'
+                      ? 'heart.fill'
+                      : member.decision === 'passed'
+                        ? 'xmark'
+                        : 'ellipsis',
+                  android:
+                    member.decision === 'liked'
+                      ? 'favorite'
+                      : member.decision === 'passed'
+                        ? 'close'
+                        : 'more_horiz',
+                  web:
+                    member.decision === 'liked'
+                      ? 'favorite'
+                      : member.decision === 'passed'
+                        ? 'close'
+                        : 'more_horiz',
+                })}
+                title={member.name}
+                subtitle={member.decision === 'waiting' ? 'Still deciding' : member.decision}
+              />
+            ))}
+          </SurfacePanel>
+        </AppSection>
+      ) : null}
 
       <AppSection title="Overview">
         <SurfacePanel>
@@ -320,6 +363,28 @@ export default function ListingDetailScreen() {
       </View>
     </Screen>
   );
+}
+
+function readGroupOutcomeLabel(
+  outcome: ReturnType<typeof useHiveGroup>['outcomesByListing'][string] | undefined,
+  memberCount: number,
+) {
+  if (!outcome) return 'No group votes on this listing yet.';
+  if (outcome.status === 'matched') return `Everyone liked this place (${outcome.likes}/${memberCount}).`;
+  return `${outcome.likes}/${memberCount} liked · ${outcome.passes} passed · ${outcome.waiting} waiting.`;
+}
+
+function readMemberVotes(
+  outcome: ReturnType<typeof useHiveGroup>['outcomesByListing'][string] | undefined,
+  members: ReturnType<typeof useHiveGroup>['members'],
+) {
+  if (outcome) return outcome.members;
+
+  return members.map((member) => ({
+    userId: member.userId,
+    name: member.name,
+    decision: 'waiting' as const,
+  }));
 }
 
 const styles = StyleSheet.create({

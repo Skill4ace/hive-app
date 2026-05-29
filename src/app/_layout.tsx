@@ -7,6 +7,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { Colors } from '@/constants/theme';
+import { HiveGroupProvider } from '@/lib/group-state';
 import { HiveAppStateProvider } from '@/lib/hive-state';
 
 export default function TabLayout() {
@@ -37,23 +38,25 @@ export default function TabLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider value={navigationTheme}>
         <HiveAppStateProvider>
-          <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
-          <AnimatedSplashOverlay />
-          <Stack
-            screenOptions={{
-              headerShown: false,
-              contentStyle: { backgroundColor: colors.background },
-            }}>
-            <Stack.Screen name="index" />
-            <Stack.Screen name="(app)" />
-            <Stack.Screen name="(auth)" options={{ presentation: 'card', gestureEnabled: false }} />
-            <Stack.Screen name="listing/[id]" options={{ presentation: 'card' }} />
-            <Stack.Screen name="group/[id]" options={{ presentation: 'card' }} />
-            <Stack.Screen name="preferences" options={{ presentation: 'card' }} />
-            <Stack.Screen name="account" options={{ presentation: 'card' }} />
-            <Stack.Screen name="notifications" options={{ presentation: 'card' }} />
-            <Stack.Screen name="privacy" options={{ presentation: 'card' }} />
-          </Stack>
+          <HiveGroupProvider>
+            <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
+            <AnimatedSplashOverlay />
+            <Stack
+              screenOptions={{
+                headerShown: false,
+                contentStyle: { backgroundColor: colors.background },
+              }}>
+              <Stack.Screen name="index" />
+              <Stack.Screen name="(app)" />
+              <Stack.Screen name="(auth)" options={{ presentation: 'card', gestureEnabled: false }} />
+              <Stack.Screen name="listing/[id]" options={{ presentation: 'card' }} />
+              <Stack.Screen name="group/[id]" options={{ presentation: 'card' }} />
+              <Stack.Screen name="preferences" options={{ presentation: 'card' }} />
+              <Stack.Screen name="account" options={{ presentation: 'card' }} />
+              <Stack.Screen name="notifications" options={{ presentation: 'card' }} />
+              <Stack.Screen name="privacy" options={{ presentation: 'card' }} />
+            </Stack>
+          </HiveGroupProvider>
         </HiveAppStateProvider>
       </ThemeProvider>
     </GestureHandlerRootView>
