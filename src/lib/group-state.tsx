@@ -82,7 +82,7 @@ type HiveGroupContextValue = {
   matchedIds: string[];
   partialIds: string[];
   outcomesByListing: Record<string, GroupOutcome>;
-  createGroup: (nextPreferences?: Partial<SearchPreferences>) => Promise<void>;
+  createGroup: (nextPreferences?: Partial<SearchPreferences>, groupName?: string) => Promise<void>;
   joinGroup: (inviteCode: string, nextPreferences?: Partial<SearchPreferences>) => Promise<void>;
   renameGroup: (name: string) => Promise<void>;
   leaveGroup: () => Promise<void>;
@@ -305,7 +305,7 @@ export function HiveGroupProvider({ children }: { children: ReactNode }) {
     syncDecisions,
   ]);
 
-  const createGroup = useCallback(async (nextPreferences?: Partial<SearchPreferences>) => {
+  const createGroup = useCallback(async (nextPreferences?: Partial<SearchPreferences>, groupName?: string) => {
     setLoading(true);
     setError(null);
 
@@ -314,6 +314,7 @@ export function HiveGroupProvider({ children }: { children: ReactNode }) {
       setAuthUserId(user.id);
       setAuthReady(true);
       const actionPreferences = { ...preferences, ...nextPreferences };
+      const normalizedGroupName = normalizeOptionalGroupName(groupName);
 
       const supabase = getSupabaseClient();
       const { error: createError } = await supabase.rpc('create_housing_group', {
@@ -323,6 +324,16 @@ export function HiveGroupProvider({ children }: { children: ReactNode }) {
 
       if (createError) {
         throw new Error(`Unable to create group: ${createError.message}`);
+      }
+
+      if (normalizedGroupName) {
+        const { error: renameError } = await supabase.rpc('rename_active_group', {
+          new_name: normalizedGroupName,
+        });
+
+        if (renameError) {
+          throw new Error(`Unable to name group: ${renameError.message}`);
+        }
       }
 
       await loadGroup();
@@ -628,6 +639,11 @@ function normalizeUsername(value: string) {
 function normalizeCampusSlug(value: string) {
   const normalized = value.trim().toLowerCase();
   return normalized || 'ucla';
+}
+
+function normalizeOptionalGroupName(value: string | undefined) {
+  const normalized = (value ?? '').trim().replace(/\s+/g, ' ');
+  return normalized || null;
 }
 
 function readErrorMessage(error: unknown) {

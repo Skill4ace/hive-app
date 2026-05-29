@@ -20,10 +20,12 @@ import { Radius, Spacing } from '@/constants/theme';
 import { useSavedRealListings } from '@/hooks/use-real-listings';
 import { useTheme } from '@/hooks/use-theme';
 import { useHiveGroup, type GroupOutcome } from '@/lib/group-state';
+import { useHiveAppState } from '@/lib/hive-state';
 
 export default function GroupsScreen() {
   const router = useRouter();
   const theme = useTheme();
+  const { preferences } = useHiveAppState();
   const {
     group,
     authUserId,
@@ -41,10 +43,12 @@ export default function GroupsScreen() {
     refresh,
   } = useHiveGroup();
   const [inviteCode, setInviteCode] = useState('');
+  const [createGroupName, setCreateGroupName] = useState(() => makeDefaultGroupName(preferences.username));
   const [submitting, setSubmitting] = useState(false);
   const [membersExpanded, setMembersExpanded] = useState(false);
   const [renameVisible, setRenameVisible] = useState(false);
   const [renameName, setRenameName] = useState('');
+  const defaultCreateGroupName = useMemo(() => makeDefaultGroupName(preferences.username), [preferences.username]);
   const compactError = error ? readGroupErrorCopy(error) : null;
   const listingIds = useMemo(() => outcomes.map((outcome) => outcome.propertyId), [outcomes]);
   const { data: listings, loading: listingsLoading } = useSavedRealListings(listingIds);
@@ -54,6 +58,9 @@ export default function GroupsScreen() {
   );
   const isOwner = Boolean(group && authUserId === group.ownerId);
   const inviteCodeDisplay = readInviteCodeDisplay(group?.inviteCode);
+  const normalizedCreateGroupName = normalizeGroupName(createGroupName);
+  const createGroupNameError = readGroupNameError(normalizedCreateGroupName);
+  const canCreateGroup = !submitting && !createGroupNameError;
   const normalizedRenameName = normalizeGroupName(renameName);
   const renameError = renameVisible ? readGroupNameError(normalizedRenameName) : null;
   const canSaveRename =
@@ -269,27 +276,19 @@ export default function GroupsScreen() {
       ) : (
         <>
           <SurfacePanel>
-            <View style={[styles.heroIcon, { backgroundColor: theme.primarySoft }]}>
-              <IconGlyph
-                name={hiveSymbol({ ios: 'person.2.fill', android: 'groups', web: 'groups' })}
-                color={theme.primary}
-                size={34}
-              />
-            </View>
-            <View style={styles.emptyCopy}>
-              <ThemedText type="title" style={styles.centerText}>
-                Private group
-              </ThemedText>
-              <ThemedText type="small" themeColor="textSecondary" style={styles.centerText}>
-                Create a code for your roommates.
-              </ThemedText>
-            </View>
+            <ThemedText type="subtitle">Create a group</ThemedText>
+            <FormField
+              label="Name"
+              value={createGroupName}
+              placeholder={defaultCreateGroupName}
+              onChangeText={setCreateGroupName}
+              error={createGroupName.trim() ? createGroupNameError ?? undefined : undefined}
+            />
             <Button
               fullWidth
-              disabled={submitting}
-              leftIcon={hiveSymbol({ ios: 'plus', android: 'add', web: 'add' })}
+              disabled={!canCreateGroup}
               onPress={() => {
-                void runGroupAction(createGroup);
+                void runGroupAction(() => createGroup(undefined, normalizedCreateGroupName));
               }}>
               Create
             </Button>
@@ -365,6 +364,11 @@ function normalizeInviteInput(value: string) {
 
 function normalizeGroupName(value: string) {
   return value.trim().replace(/\s+/g, ' ');
+}
+
+function makeDefaultGroupName(username: string) {
+  const normalizedUsername = username.trim() || 'Hive';
+  return `${normalizedUsername}'s group`;
 }
 
 function readGroupNameError(value: string) {
@@ -463,14 +467,6 @@ const styles = StyleSheet.create({
   stack: {
     gap: Spacing.two,
   },
-  heroIcon: {
-    width: 76,
-    height: 76,
-    borderRadius: Radius.xl,
-    alignSelf: 'center',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   groupHeroTop: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -501,12 +497,6 @@ const styles = StyleSheet.create({
     borderRadius: 13,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  emptyCopy: {
-    gap: Spacing.one,
-  },
-  centerText: {
-    textAlign: 'center',
   },
   inlineCodeBox: {
     width: 96,
