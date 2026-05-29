@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { AppTopBar } from '@/components/hive/app-shell';
@@ -16,18 +16,12 @@ const options: { label: string; value: SavedTab }[] = [
   { label: 'Matched', value: 'matched' },
 ];
 
-const MATCH_THRESHOLD = 85;
-
 export default function SavedScreen() {
   const router = useRouter();
   const { likedIds } = useHiveAppState();
   const [tab, setTab] = useState<SavedTab>('all');
   const { data: savedListings, loading, error, refresh } = useSavedRealListings(likedIds);
-  const matchedListings = useMemo(
-    () => savedListings.filter((listing) => listing.match >= MATCH_THRESHOLD),
-    [savedListings],
-  );
-  const visibleListings = tab === 'all' ? savedListings : matchedListings;
+  const visibleListings = tab === 'all' ? savedListings : [];
 
   return (
     <Screen contentStyle={styles.screen}>
@@ -58,8 +52,8 @@ export default function SavedScreen() {
       ) : visibleListings.length === 0 ? (
         <EmptyState
           icon={hiveSymbol({ ios: tab === 'all' ? 'heart' : 'sparkles', android: tab === 'all' ? 'favorite_border' : 'auto_awesome', web: tab === 'all' ? 'favorite_border' : 'auto_awesome' })}
-          title={tab === 'all' ? 'No saved places yet' : 'No strong matches yet'}
-          body={tab === 'all' ? 'Like a place in Discover and it will show up here.' : `Personal matches are saved listings with ${MATCH_THRESHOLD}% search fit or higher.`}
+          title={tab === 'all' ? 'No saved places yet' : 'No group matches yet'}
+          body={tab === 'all' ? 'Like a place in Discover and it will show up here.' : 'When your group likes the same place, it will show up here.'}
           action={
             <Button onPress={() => router.push('/discover')}>
               Discover

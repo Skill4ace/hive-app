@@ -70,7 +70,7 @@ export default function MapScreen() {
             ref={searchInputRef}
             value={query}
             onChangeText={setQuery}
-            placeholder="Search apartment"
+            placeholder="Search apartments"
             placeholderTextColor={theme.textTertiary}
             style={[styles.searchInput, { color: theme.text }]}
           />

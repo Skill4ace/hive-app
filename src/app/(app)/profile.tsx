@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
+import { Alert, StyleSheet, View } from 'react-native';
 
 import { AppSection, AppTopBar, SettingRow, SurfacePanel } from '@/components/hive/app-shell';
 import { Button, Pill, Screen, hiveSymbol } from '@/components/hive/primitives';
@@ -10,7 +10,23 @@ import { useHiveAppState } from '@/lib/hive-state';
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { preferences, likedIds, passedIds } = useHiveAppState();
+  const { preferences, likedIds, passedIds, clearDecision } = useHiveAppState();
+  const clearMatches = () => {
+    if (likedIds.length === 0) return;
+
+    Alert.alert(
+      'Clear matches?',
+      `This removes ${likedIds.length} saved ${likedIds.length === 1 ? 'match' : 'matches'} from this phone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear',
+          style: 'destructive',
+          onPress: () => likedIds.forEach((id) => clearDecision(id)),
+        },
+      ],
+    );
+  };
   const searchItems = [
     {
       icon: hiveSymbol({ ios: 'graduationcap.fill', android: 'school', web: 'school' }),
@@ -105,6 +121,14 @@ export default function ProfileScreen() {
         </Button>
         <Button fullWidth onPress={() => router.push('/preferences')}>
           Edit search preferences
+        </Button>
+        <Button
+          fullWidth
+          variant="secondary"
+          disabled={likedIds.length === 0}
+          leftIcon={hiveSymbol({ ios: 'heart.slash.fill', android: 'heart_broken', web: 'heart_broken' })}
+          onPress={clearMatches}>
+          Clear matches
         </Button>
         <Button
           fullWidth
