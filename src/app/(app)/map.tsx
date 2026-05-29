@@ -33,12 +33,9 @@ export default function MapScreen() {
   const [selectedId, setSelectedId] = useState<string | null>(params.selected ?? null);
   const [query, setQuery] = useState('');
   const filteredListings = useMemo(() => searchListings(listings, query), [listings, query]);
-  const selectedListing =
-    filteredListings.find((listing) => listing.id === selectedId) ??
-    filteredListings.find((listing) => listing.id === params.selected) ??
-    filteredListings[0] ??
-    listings[0] ??
-    null;
+  const selectedListing = selectedId
+    ? (filteredListings.find((listing) => listing.id === selectedId) ?? null)
+    : null;
 
   useFocusEffect(
     useCallback(() => {
@@ -101,8 +98,9 @@ export default function MapScreen() {
               showsBuildings
               showsCompass={false}
               showsPointsOfInterests
-              legalLabelInsets={{ bottom: 10, left: 10, right: 10, top: 10 }}>
-              <Marker coordinate={UCLA_COORDINATE} anchor={{ x: 0.5, y: 0.5 }}>
+              legalLabelInsets={{ bottom: 10, left: 10, right: 10, top: 10 }}
+              onPress={() => setSelectedId(null)}>
+              <Marker coordinate={UCLA_COORDINATE} anchor={{ x: 0.5, y: 0.5 }} stopPropagation>
                 <View style={styles.campusMarker}>
                   <View style={[styles.campusDot, { backgroundColor: theme.primary, shadowColor: theme.shadow }]}>
                     <IconGlyph
@@ -124,6 +122,7 @@ export default function MapScreen() {
                     key={listing.id}
                     coordinate={listing.coordinates}
                     anchor={{ x: 0.5, y: 0.5 }}
+                    stopPropagation
                     onPress={() => setSelectedId(listing.id)}>
                     <View
                       style={[
@@ -161,9 +160,10 @@ export default function MapScreen() {
                 },
               ]}>
               <Image
-                source={{ uri: selectedListing.image }}
+                source={{ uri: selectedListing.photos?.[0] ?? selectedListing.image }}
                 style={styles.previewImage}
                 contentFit="cover"
+                contentPosition="center"
                 transition={220}
               />
               <View style={styles.previewCopy}>
@@ -189,13 +189,13 @@ export default function MapScreen() {
                 </ThemedText>
               </View>
             </Pressable>
-          ) : (
+          ) : filteredListings.length === 0 ? (
             <EmptyState
               icon={hiveSymbol({ ios: 'magnifyingglass', android: 'search', web: 'search' })}
               title="No map results"
               body="Try another building name, address, or manager."
             />
-          )}
+          ) : null}
         </>
       )}
     </Screen>
@@ -272,7 +272,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: 6,
     flexDirection: 'row',
-    alignItems: 'stretch',
+    alignItems: 'center',
     gap: Spacing.two,
     ...Shadows.soft,
   },
