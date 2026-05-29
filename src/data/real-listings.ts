@@ -56,6 +56,7 @@ type PropertyRow = {
 };
 
 type PhotoRow = {
+  property_id?: string;
   source_url: string;
   storage_bucket: string | null;
   storage_path: string | null;
@@ -152,7 +153,10 @@ export async function fetchRealListings(preferences: SearchPreferences) {
     throw new Error(`Unable to load listings: ${error.message}`);
   }
 
-  return mapAndRankRows((data ?? []) as unknown as ListingSearchRow[], preferences, campus);
+  const rows = (data ?? []) as unknown as ListingSearchRow[];
+  const photoMap = await fetchPhotoMap(rows.map((row) => row.property_id));
+
+  return mapAndRankRows(rows, preferences, campus, photoMap);
 }
 
 export async function fetchListingsByIds(ids: string[], preferences: SearchPreferences) {
@@ -171,8 +175,10 @@ export async function fetchListingsByIds(ids: string[], preferences: SearchPrefe
   }
 
   const order = new Map(ids.map((id, index) => [id, index]));
+  const rows = (data ?? []) as unknown as ListingSearchRow[];
+  const photoMap = await fetchPhotoMap(rows.map((row) => row.property_id));
 
-  return mapAndRankRows((data ?? []) as unknown as ListingSearchRow[], preferences, campus).sort(
+  return mapAndRankRows(rows, preferences, campus, photoMap).sort(
     (a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0),
   );
 }
@@ -322,10 +328,49 @@ function fetchCampus(slug: string) {
     });
 }
 
-function mapAndRankRows(rows: ListingSearchRow[], preferences: SearchPreferences, campus: CampusRow) {
+async function fetchPhotoMap(propertyIds: string[]) {
+  const ids = [...new Set(propertyIds)].filter(Boolean);
+  const photoMap = new Map<string, string[]>();
+
+  if (ids.length === 0) return photoMap;
+
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('listing_photos')
+    .select('property_id,source_url,storage_bucket,storage_path,display_order,download_status')
+    .in('property_id', ids)
+    .order('property_id', { ascending: true })
+    .order('display_order', { ascending: true })
+    .limit(5000);
+
+  if (error) {
+    return photoMap;
+  }
+
+  const groupedRows = new Map<string, PhotoRow[]>();
+  for (const row of (data ?? []) as PhotoRow[]) {
+    if (!row.property_id) continue;
+    const current = groupedRows.get(row.property_id) ?? [];
+    current.push(row);
+    groupedRows.set(row.property_id, current);
+  }
+
+  for (const [propertyId, rows] of groupedRows) {
+    photoMap.set(propertyId, mapPhotoUrls(rows).slice(0, 12));
+  }
+
+  return photoMap;
+}
+
+function mapAndRankRows(
+  rows: ListingSearchRow[],
+  preferences: SearchPreferences,
+  campus: CampusRow,
+  photoMap = new Map<string, string[]>(),
+) {
   return rows
     .filter((row) => row.active && row.available_unit_count > 0 && row.primary_photo_url && row.latitude && row.longitude)
-    .map((row) => mapSearchRowToListing(row, preferences, campus))
+    .map((row) => mapSearchRowToListing(row, preferences, campus, { photos: photoMap.get(row.property_id) }))
     .sort((a, b) => {
       if (b.match !== a.match) return b.match - a.match;
       return (a.minRent ?? Number.MAX_SAFE_INTEGER) - (b.minRent ?? Number.MAX_SAFE_INTEGER);

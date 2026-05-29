@@ -293,15 +293,27 @@ export function ListingCard({ listing, variant = 'grid', onPress, heroHeight = 3
   );
 }
 
+// Crossfade applied when the swipe card's photo changes (carousel + promotion).
+// Exported so the swipe deck can hold its masking cover until this settles.
+export const SWIPE_CARD_IMAGE_TRANSITION = 180;
+
 type SwipeListingCardProps = {
   listing: Listing;
   height: number;
-  onPress?: () => void;
+  photoIndex?: number;
   onImageLoad?: () => void;
 };
 
-export function SwipeListingCard({ listing, height, onPress, onImageLoad }: SwipeListingCardProps) {
+export function SwipeListingCard({
+  listing,
+  height,
+  photoIndex = 0,
+  onImageLoad,
+}: SwipeListingCardProps) {
   const theme = useTheme();
+  const photos = listing.photos?.length ? listing.photos : [listing.image];
+  const normalizedPhotoIndex = photos.length ? ((photoIndex % photos.length) + photos.length) % photos.length : 0;
+  const activePhoto = photos[normalizedPhotoIndex] ?? listing.image;
   const chips = [
     listing.bedsLabel ?? `${listing.beds} Beds`,
     listing.bathsLabel ?? `${listing.baths} Bath${listing.baths === 1 ? '' : 's'}`,
@@ -309,27 +321,37 @@ export function SwipeListingCard({ listing, height, onPress, onImageLoad }: Swip
   ];
 
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`Open ${listing.title}`}
-      onPress={onPress}
-      style={({ pressed }) => [
+    <View
+      style={[
         styles.swipeCard,
         {
           height,
           backgroundColor: theme.surface,
           shadowColor: theme.shadow,
-          opacity: pressed ? 0.92 : 1,
         },
       ]}>
       <Image
-        source={{ uri: listing.image }}
+        source={{ uri: activePhoto }}
         style={StyleSheet.absoluteFill}
         contentFit="cover"
+        transition={SWIPE_CARD_IMAGE_TRANSITION}
         onLoad={onImageLoad}
       />
       <View style={[styles.swipeScrim, { backgroundColor: 'rgba(19, 8, 23, 0.28)' }]} />
       <View style={styles.swipeBottomShade} />
+      {photos.length > 1 ? (
+        <View pointerEvents="none" style={styles.photoProgress}>
+          {photos.map((photo, index) => (
+            <View
+              key={`${photo}-${index}`}
+              style={[
+                styles.photoProgressItem,
+                index === normalizedPhotoIndex && styles.photoProgressItemActive,
+              ]}
+            />
+          ))}
+        </View>
+      ) : null}
       <View style={styles.campusPill}>
         <IconGlyph
           name={hiveSymbol({ ios: 'figure.walk', android: 'directions_walk', web: 'directions_walk' })}
@@ -361,7 +383,7 @@ export function SwipeListingCard({ listing, height, onPress, onImageLoad }: Swip
           ))}
         </View>
       </View>
-    </Pressable>
+    </View>
   );
 }
 
@@ -618,12 +640,30 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    height: '52%',
+    height: '38%',
     backgroundColor: 'rgba(18, 8, 22, 0.48)',
+  },
+  photoProgress: {
+    position: 'absolute',
+    top: 12,
+    left: Spacing.three,
+    right: Spacing.three,
+    zIndex: 3,
+    flexDirection: 'row',
+    gap: 4,
+  },
+  photoProgressItem: {
+    flex: 1,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255,255,255,0.36)',
+  },
+  photoProgressItemActive: {
+    backgroundColor: '#FFFFFF',
   },
   campusPill: {
     position: 'absolute',
-    top: Spacing.three,
+    top: Spacing.five,
     right: Spacing.three,
     minHeight: 32,
     borderRadius: Radius.pill,

@@ -1,6 +1,7 @@
 /* eslint-disable react-hooks/immutability, react-hooks/set-state-in-effect */
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
@@ -14,8 +15,13 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { AppTopBar } from '@/components/hive/app-shell';
-import { SwipeActionButton, SwipeListingCard, type Listing } from '@/components/hive/listing';
-import { Button, EmptyState, Screen, Skeleton, hiveSymbol } from '@/components/hive/primitives';
+import {
+  SwipeActionButton,
+  SwipeListingCard,
+  SWIPE_CARD_IMAGE_TRANSITION,
+  type Listing,
+} from '@/components/hive/listing';
+import { Button, EmptyState, IconButton, Screen, Skeleton, hiveSymbol } from '@/components/hive/primitives';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { useRealListings } from '@/hooks/use-real-listings';
@@ -24,11 +30,13 @@ import { useHiveAppState, type ListingDecision } from '@/lib/hive-state';
 export default function DiscoverScreen() {
   const router = useRouter();
   const { height, width } = useWindowDimensions();
-  const { preferences, decisions, recordDecision, undoDecision } = useHiveAppState();
+  const { decisions, recordDecision, undoDecision } = useHiveAppState();
   const { data: listings, loading, error, refresh } = useRealListings();
   const [deck, setDeck] = useState<Listing[]>([]);
+  const [photoIndexes, setPhotoIndexes] = useState<Record<string, number>>({});
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [coverListing, setCoverListing] = useState<Listing | null>(null);
+  const activeCardRef = useRef<View>(null);
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
   const dragX = useSharedValue(0);
@@ -42,7 +50,14 @@ export default function DiscoverScreen() {
     compactActions ? 540 : 650,
     Math.max(compactActions ? 470 : 500, height * (compactActions ? 0.6 : 0.66)),
   );
+  const cardFrameX = useSharedValue(0);
+  const cardFrameY = useSharedValue(0);
+  const cardFrameWidth = useSharedValue(1);
+  const cardFrameHeight = useSharedValue(cardHeight);
   const swipeThreshold = Math.min(width * 0.26, 128);
+  const activePhotoIndex = featured ? (photoIndexes[featured.id] ?? 0) : 0;
+  const nextPhotoIndex = nextListing ? (photoIndexes[nextListing.id] ?? 0) : 0;
+  const coverPhotoIndex = coverListing ? (photoIndexes[coverListing.id] ?? 0) : 0;
   const resetMotion = useCallback(() => {
     translateX.value = 0;
     translateY.value = 0;
@@ -52,15 +67,6 @@ export default function DiscoverScreen() {
     setCoverListing(null);
     setIsTransitioning(false);
   }, [coverOpacity, dragX, revealPending, translateX, translateY]);
-  const activeFilters = useMemo(() => {
-    let count = 0;
-    if (preferences.budgetMax < 3000) count += 1;
-    if (preferences.distanceMiles < 2.5) count += 1;
-    if (preferences.bedrooms > 1) count += 1;
-    if (preferences.moveIn !== 'Flexible') count += 1;
-    return count;
-  }, [preferences]);
-
   // The deck is derived from the data + decisions (so Undo re-adds cards).
   // Motion is intentionally NOT reset here — that would yank an in-flight
   // cover transition out from under itself when recordDecision updates
@@ -68,6 +74,20 @@ export default function DiscoverScreen() {
   useEffect(() => {
     setDeck(listings.filter((listing) => !decisions[listing.id]));
   }, [decisions, listings]);
+
+  // Warm the photo cache for the active card only, so tapping through its
+  // carousel is instant instead of waiting on a cold fetch per photo. These are
+  // static Supabase Storage/CDN assets (no DB query), and we deliberately skip
+  // the next card to avoid eagerly downloading photos for a card that may be
+  // swiped away unseen.
+  useEffect(() => {
+    if (!featured) return;
+
+    const urls = (featured.photos?.length ? featured.photos : [featured.image]).filter(Boolean);
+    if (urls.length > 1) {
+      Image.prefetch(urls);
+    }
+  }, [featured]);
 
   const finishTransition = () => {
     setCoverListing(null);
@@ -82,12 +102,14 @@ export default function DiscoverScreen() {
     });
   };
 
-  // Fired by the active card once its (newly promoted) image has decoded and
-  // is on screen, so the masking cover can fade to reveal an identical frame.
+  // Fired by the active card once its (newly promoted) image has decoded. The
+  // active card crossfades from the swiped-away photo to the promoted one over
+  // SWIPE_CARD_IMAGE_TRANSITION ms, so hold the opaque cover until that fade
+  // settles — otherwise lifting the mask exposes the outgoing frame.
   const handleActiveImageLoad = () => {
     if (revealPending.value !== 1) return;
     revealPending.value = 0;
-    revealCover();
+    setTimeout(revealCover, SWIPE_CARD_IMAGE_TRANSITION);
   };
 
   const removeTopCard = (decision: ListingDecision) => {
@@ -129,8 +151,37 @@ export default function DiscoverScreen() {
   };
 
   const openDetail = () => {
-    if (!featured) return;
+    if (!featured || isTransitioning) return;
     router.push({ pathname: '/listing/[id]', params: { id: featured.id } });
+  };
+
+  const getPhotoCount = (listing: Listing) => {
+    return listing.photos?.length ? listing.photos.length : listing.image ? 1 : 0;
+  };
+
+  const changeFeaturedPhoto = (direction: 1 | -1) => {
+    if (!featured || isTransitioning) return;
+
+    const photoCount = getPhotoCount(featured);
+    if (photoCount <= 1) return;
+
+    setPhotoIndexes((current) => {
+      const currentIndex = current[featured.id] ?? 0;
+
+      return {
+        ...current,
+        [featured.id]: (currentIndex + direction + photoCount) % photoCount,
+      };
+    });
+  };
+
+  const updateActiveCardFrame = () => {
+    activeCardRef.current?.measureInWindow((x, y, measuredWidth, measuredHeight) => {
+      cardFrameX.value = x;
+      cardFrameY.value = y;
+      cardFrameWidth.value = measuredWidth || 1;
+      cardFrameHeight.value = measuredHeight || cardHeight;
+    });
   };
 
   const animateDecision = (decision: ListingDecision) => {
@@ -182,10 +233,17 @@ export default function DiscoverScreen() {
 
   const tapGesture = Gesture.Tap()
     .enabled(!isTransitioning && Boolean(featured))
-    .maxDistance(12)
-    .onEnd((_event, success) => {
+    .maxDistance(10)
+    .onEnd((event, success) => {
       if (success) {
-        runOnJS(openDetail)();
+        const relativeX = event.absoluteX - cardFrameX.value;
+        const relativeY = event.absoluteY - cardFrameY.value;
+
+        if (relativeY <= cardFrameHeight.value * 0.62) {
+          runOnJS(changeFeaturedPhoto)(relativeX < cardFrameWidth.value / 2 ? -1 : 1);
+        } else {
+          runOnJS(openDetail)();
+        }
       }
     });
 
@@ -240,13 +298,21 @@ export default function DiscoverScreen() {
 
   return (
     <Screen scroll={false} contentStyle={styles.screen}>
-      <AppTopBar title="Discover" />
+      <AppTopBar
+        title="Discover"
+        right={
+          <IconButton
+            icon={hiveSymbol({ ios: 'slider.horizontal.3', android: 'tune', web: 'tune' })}
+            label="Edit preferences"
+            onPress={() => router.push('/preferences')}
+          />
+        }
+      />
 
       {loading ? (
         <View style={styles.loadingDeck}>
           <Skeleton height={cardHeight} radius={34} />
           <View style={styles.loadingControls}>
-            <Skeleton width={58} height={58} />
             <Skeleton width={58} height={58} />
             <Skeleton width={58} height={58} />
             <Skeleton width={58} height={58} />
@@ -283,15 +349,20 @@ export default function DiscoverScreen() {
           <View style={[styles.cardStack, { height: cardHeight }]}>
             {nextListing ? (
               <Animated.View pointerEvents="none" style={[styles.cardSlot, nextCardStyle]}>
-                <SwipeListingCard listing={nextListing} height={cardHeight} />
+                <SwipeListingCard listing={nextListing} height={cardHeight} photoIndex={nextPhotoIndex} />
               </Animated.View>
             ) : null}
 
             <GestureDetector gesture={cardGesture}>
-              <Animated.View style={[styles.cardSlot, activeCardStyle]}>
+              <Animated.View
+                ref={activeCardRef}
+                collapsable={false}
+                onLayout={updateActiveCardFrame}
+                style={[styles.cardSlot, activeCardStyle]}>
                 <SwipeListingCard
                   listing={featured}
                   height={cardHeight}
+                  photoIndex={activePhotoIndex}
                   onImageLoad={handleActiveImageLoad}
                 />
                 <Animated.View style={[styles.decisionBadge, styles.passBadge, passBadgeStyle]}>
@@ -309,7 +380,11 @@ export default function DiscoverScreen() {
 
             {coverListing ?? nextListing ? (
               <Animated.View pointerEvents="none" style={[styles.cardSlot, coverCardStyle]}>
-                <SwipeListingCard listing={(coverListing ?? nextListing)!} height={cardHeight} />
+                <SwipeListingCard
+                  listing={(coverListing ?? nextListing)!}
+                  height={cardHeight}
+                  photoIndex={coverListing ? coverPhotoIndex : nextPhotoIndex}
+                />
               </Animated.View>
             ) : null}
           </View>
@@ -321,12 +396,6 @@ export default function DiscoverScreen() {
               action="map"
               size={actionButtonSize}
               onPress={() => router.push({ pathname: '/map', params: { selected: featured.id } })}
-            />
-            <SwipeActionButton
-              action="filters"
-              size={actionButtonSize}
-              badgeCount={activeFilters}
-              onPress={() => router.push('/preferences')}
             />
           </View>
         </View>

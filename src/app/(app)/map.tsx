@@ -11,7 +11,6 @@ import { Fonts, Radius, Shadows, Spacing } from '@/constants/theme';
 import { searchListings } from '@/data/real-listings';
 import { useRealListings } from '@/hooks/use-real-listings';
 import { useTheme } from '@/hooks/use-theme';
-import { useHiveAppState } from '@/lib/hive-state';
 
 const UCLA_REGION: Region = {
   latitude: 34.0667,
@@ -28,7 +27,6 @@ const UCLA_COORDINATE = {
 export default function MapScreen() {
   const router = useRouter();
   const theme = useTheme();
-  const { preferences } = useHiveAppState();
   const { data: listings, loading, error, refresh } = useRealListings();
   const params = useLocalSearchParams<{ selected?: string }>();
   const searchInputRef = useRef<TextInput>(null);
@@ -50,7 +48,16 @@ export default function MapScreen() {
 
   return (
     <Screen scroll={false} contentStyle={styles.screen}>
-      <AppTopBar title="Map" />
+      <AppTopBar
+        title="Map"
+        right={
+          <IconButton
+            icon={hiveSymbol({ ios: 'slider.horizontal.3', android: 'tune', web: 'tune' })}
+            label="Edit preferences"
+            onPress={() => router.push('/preferences')}
+          />
+        }
+      />
 
       <View style={styles.searchRow}>
         <View style={[styles.searchBar, { backgroundColor: theme.surface, borderColor: theme.border }]}>
@@ -68,11 +75,6 @@ export default function MapScreen() {
             style={[styles.searchInput, { color: theme.text }]}
           />
         </View>
-        <IconButton
-          icon={hiveSymbol({ ios: 'slider.horizontal.3', android: 'tune', web: 'tune' })}
-          label="Filter map"
-          onPress={() => router.push('/preferences')}
-        />
       </View>
 
       {loading ? (
@@ -109,9 +111,6 @@ export default function MapScreen() {
                       size={16}
                     />
                   </View>
-                  <ThemedText type="caption" style={{ color: theme.primary }}>
-                    {preferences.campusName}
-                  </ThemedText>
                 </View>
               </Marker>
 
