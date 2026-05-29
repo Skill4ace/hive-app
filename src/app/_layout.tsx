@@ -44,7 +44,7 @@ export default function TabLayout() {
           }}>
           <Stack.Screen name="index" />
           <Stack.Screen name="(app)" />
-          <Stack.Screen name="(auth)" options={{ presentation: 'modal' }} />
+          <Stack.Screen name="(auth)" options={{ presentation: 'card' }} />
           <Stack.Screen name="listing/[id]" options={{ presentation: 'card' }} />
           <Stack.Screen name="group/[id]" options={{ presentation: 'card' }} />
           <Stack.Screen name="preferences" options={{ presentation: 'card' }} />

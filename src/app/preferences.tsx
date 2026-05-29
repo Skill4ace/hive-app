@@ -2,9 +2,18 @@ import { useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
 import { AppSection, AppTopBar, SurfacePanel } from '@/components/hive/app-shell';
-import { Button, FormField, IconButton, PreferenceChip, Screen, hiveSymbol } from '@/components/hive/primitives';
+import { Button, IconButton, PreferenceChip, Screen, hiveSymbol } from '@/components/hive/primitives';
+import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
-import { profileTraits } from '@/data/module-one-demo';
+
+const rentOptions = ['No max', '$1,500', '$2,000', '$2,500', '$3,000+'];
+const moveOptions = ['ASAP', 'August', 'September', 'Flexible'];
+const commuteOptions = ['Walk', 'Bike', 'Drive', 'Transit'];
+const commuteMaxOptions = ['10 min', '15 min', '20 min', 'Flexible'];
+const roomTypeOptions = ['Apartment', 'Studio', 'Private room', 'Shared room', 'Flexible'];
+const bedroomOptions = ['Studio', '1', '2', '3', '4+', 'Flexible'];
+const bathOptions = ['1+', '2+', 'Flexible'];
+const parkingOptions = ['Needed', 'Nice to have', 'No preference'];
 
 export default function PreferencesScreen() {
   const router = useRouter();
@@ -12,7 +21,7 @@ export default function PreferencesScreen() {
   return (
     <Screen contentStyle={styles.screen}>
       <AppTopBar
-        title="Preferences"
+        title="Search"
         right={
           <IconButton
             icon={hiveSymbol({ ios: 'xmark', android: 'close', web: 'close' })}
@@ -22,42 +31,54 @@ export default function PreferencesScreen() {
         }
       />
 
-      <AppSection title="Housing">
+      <AppSection title="Campus">
         <SurfacePanel>
-          <FormField
-            label="Campus"
-            value="UCLA"
-            icon={hiveSymbol({ ios: 'graduationcap.fill', android: 'school', web: 'school' })}
-          />
-          <FormField
-            label="Budget per person"
-            value="$1,200 - $2,000"
-            icon={hiveSymbol({ ios: 'dollarsign.circle.fill', android: 'attach_money', web: 'attach_money' })}
-          />
-          <FormField
-            label="Neighborhoods"
-            value="Westwood, Sawtelle, West LA"
-            icon={hiveSymbol({ ios: 'mappin.and.ellipse', android: 'location_on', web: 'location_on' })}
-          />
-          <FormField
-            label="Distance to campus"
-            value="Under 1.5 miles"
-            icon={hiveSymbol({ ios: 'figure.walk', android: 'directions_walk', web: 'directions_walk' })}
-          />
-          <FormField
-            label="Move-in"
-            value="Aug 1 - Sep 1"
-            icon={hiveSymbol({ ios: 'calendar', android: 'calendar_month', web: 'calendar_month' })}
-          />
+          <View style={styles.singleRow}>
+            <ThemedText type="sectionTitle">UCLA</ThemedText>
+            <ThemedText type="caption" themeColor="textSecondary">
+              More campuses later
+            </ThemedText>
+          </View>
         </SurfacePanel>
       </AppSection>
 
-      <AppSection title="Lifestyle">
+      <ChipSection title="Rent" options={rentOptions} selected="$2,500" />
+      <ChipSection title="Move-in" options={moveOptions} selected="August" />
+      <ChipSection title="Commute" options={commuteOptions} selected="Walk" />
+      <ChipSection title="Max commute" options={commuteMaxOptions} selected="20 min" />
+      <ChipSection title="Listing type" options={roomTypeOptions} selected="Apartment" />
+
+      <AppSection title="Room setup">
         <SurfacePanel>
-          <View style={styles.chips}>
-            {profileTraits.map((trait, index) => (
-              <PreferenceChip key={trait} label={trait} selected={index < 4} />
-            ))}
+          <View style={styles.subgroup}>
+            <ThemedText type="label" themeColor="textTertiary">
+              Bedrooms
+            </ThemedText>
+            <View style={styles.chips}>
+              {bedroomOptions.map((option) => (
+                <PreferenceChip key={option} label={option} selected={option === '2'} />
+              ))}
+            </View>
+          </View>
+          <View style={styles.subgroup}>
+            <ThemedText type="label" themeColor="textTertiary">
+              Bathrooms
+            </ThemedText>
+            <View style={styles.chips}>
+              {bathOptions.map((option) => (
+                <PreferenceChip key={option} label={option} selected={option === '1+'} />
+              ))}
+            </View>
+          </View>
+          <View style={styles.subgroup}>
+            <ThemedText type="label" themeColor="textTertiary">
+              Parking
+            </ThemedText>
+            <View style={styles.chips}>
+              {parkingOptions.map((option) => (
+                <PreferenceChip key={option} label={option} selected={option === 'Nice to have'} />
+              ))}
+            </View>
           </View>
         </SurfacePanel>
       </AppSection>
@@ -69,12 +90,32 @@ export default function PreferencesScreen() {
   );
 }
 
+function ChipSection({ title, options, selected }: { title: string; options: string[]; selected: string }) {
+  return (
+    <AppSection title={title}>
+      <SurfacePanel>
+        <View style={styles.chips}>
+          {options.map((option) => (
+            <PreferenceChip key={option} label={option} selected={option === selected} />
+          ))}
+        </View>
+      </SurfacePanel>
+    </AppSection>
+  );
+}
+
 const styles = StyleSheet.create({
   screen: {
     width: '100%',
     maxWidth: 620,
     alignSelf: 'center',
     paddingBottom: Spacing.six,
+  },
+  singleRow: {
+    gap: Spacing.half,
+  },
+  subgroup: {
+    gap: Spacing.two,
   },
   chips: {
     flexDirection: 'row',
