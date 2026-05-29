@@ -1,12 +1,13 @@
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { AppTopBar } from '@/components/hive/app-shell';
-import { IconButton, Screen, SegmentedControl, hiveSymbol } from '@/components/hive/primitives';
-import { GroupConsensusRow, SavedListingRow } from '@/components/hive/listing';
+import { SavedListingRow } from '@/components/hive/listing';
+import { Button, EmptyState, IconButton, Screen, SegmentedControl, Skeleton, hiveSymbol } from '@/components/hive/primitives';
 import { Spacing } from '@/constants/theme';
-import { demoListings, demoPeople } from '@/data/module-one-demo';
+import { useSavedRealListings } from '@/hooks/use-real-listings';
+import { useHiveAppState } from '@/lib/hive-state';
 
 type SavedTab = 'all' | 'matched';
 
@@ -15,10 +16,18 @@ const options: { label: string; value: SavedTab }[] = [
   { label: 'Matched', value: 'matched' },
 ];
 
+const MATCH_THRESHOLD = 85;
+
 export default function SavedScreen() {
   const router = useRouter();
+  const { likedIds } = useHiveAppState();
   const [tab, setTab] = useState<SavedTab>('all');
-  const matchedListings = demoListings.filter((listing) => listing.status === 'matched');
+  const { data: savedListings, loading, error, refresh } = useSavedRealListings(likedIds);
+  const matchedListings = useMemo(
+    () => savedListings.filter((listing) => listing.match >= MATCH_THRESHOLD),
+    [savedListings],
+  );
+  const visibleListings = tab === 'all' ? savedListings : matchedListings;
 
   return (
     <Screen contentStyle={styles.screen}>
@@ -33,25 +42,36 @@ export default function SavedScreen() {
       />
       <SegmentedControl options={options} value={tab} onChange={setTab} />
 
-      {tab === 'all' ? (
+      {loading ? (
         <View style={styles.list}>
-          {demoListings.map((listing) => (
+          <Skeleton height={112} radius={22} />
+          <Skeleton height={112} radius={22} />
+          <Skeleton height={112} radius={22} />
+        </View>
+      ) : error ? (
+        <EmptyState
+          icon={hiveSymbol({ ios: 'wifi.exclamationmark', android: 'wifi_off', web: 'wifi_off' })}
+          title="Saved did not load"
+          body={error}
+          action={<Button onPress={refresh}>Try again</Button>}
+        />
+      ) : visibleListings.length === 0 ? (
+        <EmptyState
+          icon={hiveSymbol({ ios: tab === 'all' ? 'heart' : 'sparkles', android: tab === 'all' ? 'favorite_border' : 'auto_awesome', web: tab === 'all' ? 'favorite_border' : 'auto_awesome' })}
+          title={tab === 'all' ? 'No saved places yet' : 'No strong matches yet'}
+          body={tab === 'all' ? 'Like a place in Discover and it will show up here.' : `Personal matches are saved listings with ${MATCH_THRESHOLD}% search fit or higher.`}
+          action={
+            <Button onPress={() => router.push('/discover')}>
+              Discover
+            </Button>
+          }
+        />
+      ) : (
+        <View style={styles.list}>
+          {visibleListings.map((listing) => (
             <SavedListingRow
               key={listing.id}
               listing={listing}
-              onPress={() => router.push({ pathname: '/listing/[id]', params: { id: listing.id } })}
-            />
-          ))}
-        </View>
-      ) : (
-        <View style={styles.list}>
-          {matchedListings.map((listing) => (
-            <GroupConsensusRow
-              key={listing.id}
-              listing={listing}
-              likes="3/3"
-              status="matched"
-              people={demoPeople}
               onPress={() => router.push({ pathname: '/listing/[id]', params: { id: listing.id } })}
             />
           ))}

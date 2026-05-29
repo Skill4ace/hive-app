@@ -5,47 +5,92 @@ import { NativeScrollEvent, NativeSyntheticEvent, ScrollView, StyleSheet, useWin
 import MapView, { Marker, type Region } from 'react-native-maps';
 
 import { AppSection, SettingRow, SurfacePanel } from '@/components/hive/app-shell';
-import { Button, IconButton, Pill, PreferenceChip, Screen, hiveSymbol } from '@/components/hive/primitives';
+import { Button, EmptyState, IconButton, Pill, PreferenceChip, Screen, Skeleton, hiveSymbol } from '@/components/hive/primitives';
 import { ListingMetaRow, MatchBadge, PriceLabel } from '@/components/hive/listing';
 import { ThemedText } from '@/components/themed-text';
 import { Radius, Shadows, Spacing } from '@/constants/theme';
-import { demoListings, getListingById } from '@/data/module-one-demo';
+import { formatMoney, formatMoveIn } from '@/data/real-listings';
+import { useRealListingDetail } from '@/hooks/use-real-listings';
 import { useTheme } from '@/hooks/use-theme';
+import { useHiveAppState } from '@/lib/hive-state';
 
 export default function ListingDetailScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams();
+  const { id } = useLocalSearchParams<{ id?: string }>();
+  const listingId = Array.isArray(id) ? id[0] : id;
   const theme = useTheme();
   const { width } = useWindowDimensions();
+  const { decisions, recordDecision, clearDecision } = useHiveAppState();
+  const { data: detail, loading, error, refresh } = useRealListingDetail(listingId);
   const [photoIndex, setPhotoIndex] = useState(0);
-  const listing = getListingById(id);
-  const gallery =
-    listing.photos && listing.photos.length > 0
-      ? listing.photos
-      : [listing.image, ...demoListings.filter((item) => item.id !== listing.id).map((item) => item.image)].slice(0, 4);
+  const listing = detail?.listing;
+  const gallery = listing ? (detail.photos.length > 0 ? detail.photos : [listing.image]).filter(Boolean) : [];
   const contentWidth = Math.min(width - Spacing.three * 2, 620);
-  const propertyFacts = [
-    { label: 'Beds', value: `${listing.beds}` },
-    { label: 'Baths', value: `${listing.baths}` },
-    { label: 'Lease', value: listing.leaseTerm ?? '12 mo' },
-    { label: 'Move-in', value: listing.available ?? 'Aug 1' },
-  ];
-  const amenities = [
-    ...listing.amenities,
-    'Pet friendly',
-    'Natural light',
-    listing.campusCommute ?? 'Near campus',
-    'Study-friendly',
-  ];
-  const mapRegion: Region = {
-    latitude: listing.coordinates?.latitude ?? 34.0667,
-    longitude: listing.coordinates?.longitude ?? -118.4467,
-    latitudeDelta: 0.013,
-    longitudeDelta: 0.011,
-  };
+  const isSaved = listing ? decisions[listing.id]?.decision === 'liked' : false;
+  const availableUnits = detail?.units.filter((unit) =>
+    ['available_now', 'available_on'].includes(unit.availability_status),
+  ) ?? [];
+  const primaryUnit = availableUnits[0] ?? detail?.units[0];
 
   const handlePhotoChange = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     setPhotoIndex(Math.round(event.nativeEvent.contentOffset.x / contentWidth));
+  };
+
+  if (loading) {
+    return (
+      <Screen contentStyle={styles.screen}>
+        <Skeleton height={338} radius={Radius.xxl} />
+        <Skeleton height={122} radius={Radius.xxl} />
+        <Skeleton height={180} radius={Radius.xl} />
+      </Screen>
+    );
+  }
+
+  if (error || !detail || !listing) {
+    return (
+      <Screen contentStyle={styles.screen}>
+        <EmptyState
+          icon={hiveSymbol({ ios: 'wifi.exclamationmark', android: 'wifi_off', web: 'wifi_off' })}
+          title="Listing did not load"
+          body={error ?? 'This listing is not available right now.'}
+          action={<Button onPress={refresh}>Try again</Button>}
+        />
+      </Screen>
+    );
+  }
+
+  const propertyFacts = [
+    { label: 'Beds', value: listing.bedsLabel ?? `${listing.beds}` },
+    { label: 'Baths', value: listing.bathsLabel ?? `${listing.baths}` },
+    { label: 'Units', value: `${listing.availableUnitCount ?? availableUnits.length}` },
+    { label: 'Move-in', value: listing.available ?? 'Flexible' },
+  ];
+  const amenities = [
+    ...listing.amenities,
+    detail.property.property_type ?? 'Apartment',
+    listing.managerDisplayName ? `Managed by ${listing.managerDisplayName}` : null,
+  ].filter(Boolean) as string[];
+  const mapRegion: Region | null = listing.coordinates
+    ? {
+        latitude: listing.coordinates.latitude,
+        longitude: listing.coordinates.longitude,
+        latitudeDelta: 0.013,
+        longitudeDelta: 0.011,
+      }
+    : null;
+
+  const saveListing = () => {
+    if (isSaved) {
+      clearDecision(listing.id);
+      return;
+    }
+
+    recordDecision(listing.id, 'liked', listing.match);
+  };
+
+  const passListing = () => {
+    recordDecision(listing.id, 'passed', listing.match);
+    router.back();
   };
 
   return (
@@ -108,7 +153,13 @@ export default function ListingDetailScreen() {
             <MatchBadge value={listing.match} compact />
           </View>
         </View>
-        <ListingMetaRow beds={listing.beds} baths={listing.baths} amenities={listing.amenities} />
+        <ListingMetaRow
+          beds={listing.beds}
+          baths={listing.baths}
+          bedsLabel={listing.bedsLabel}
+          bathsLabel={listing.bathsLabel}
+          amenities={listing.amenities}
+        />
       </View>
 
       <AppSection title="Property facts">
@@ -117,7 +168,9 @@ export default function ListingDetailScreen() {
             <View
               key={fact.label}
               style={[styles.factTile, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-              <ThemedText type="metric">{fact.value}</ThemedText>
+              <ThemedText type="metric" numberOfLines={1} adjustsFontSizeToFit>
+                {fact.value}
+              </ThemedText>
               <ThemedText type="caption" themeColor="textSecondary">
                 {fact.label}
               </ThemedText>
@@ -129,25 +182,45 @@ export default function ListingDetailScreen() {
       <AppSection title="Overview">
         <SurfacePanel>
           <ThemedText type="small" themeColor="textSecondary">
-            {listing.overview ?? 'A campus-ready apartment with strong shared space, practical amenities, and a commute that works for class schedules.'}
+            {detail.property.description ??
+              'A campus-ready listing with real availability, source photos, and commute context from the current UCLA dataset.'}
           </ThemedText>
+        </SurfacePanel>
+      </AppSection>
+
+      <AppSection title="Available units">
+        <SurfacePanel>
+          {(availableUnits.length > 0 ? availableUnits : detail.units).slice(0, 5).map((unit) => (
+            <SettingRow
+              key={unit.id}
+              icon={hiveSymbol({ ios: 'door.left.hand.open', android: 'meeting_room', web: 'meeting_room' })}
+              title={unit.title || unit.listing_type || 'Available unit'}
+              subtitle={[
+                unit.listing_type,
+                unit.bedrooms ? `${unit.bedrooms} bed` : null,
+                unit.bathrooms ? `${unit.bathrooms} bath` : null,
+                formatMoveIn(unit.move_in),
+              ].filter(Boolean).join(' · ')}
+              value={formatMoney(unit.rent_monthly)}
+            />
+          ))}
         </SurfacePanel>
       </AppSection>
 
       <AppSection title="Campus map">
         <View style={[styles.mapPanel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <MapView
-            style={StyleSheet.absoluteFill}
-            initialRegion={mapRegion}
-            scrollEnabled={false}
-            zoomEnabled={false}
-            rotateEnabled={false}
-            pitchEnabled={false}
-            loadingEnabled
-            loadingBackgroundColor={theme.backgroundElement}
-            showsBuildings
-            showsCompass={false}>
-            {listing.coordinates ? (
+          {mapRegion && listing.coordinates ? (
+            <MapView
+              style={StyleSheet.absoluteFill}
+              initialRegion={mapRegion}
+              scrollEnabled={false}
+              zoomEnabled={false}
+              rotateEnabled={false}
+              pitchEnabled={false}
+              loadingEnabled
+              loadingBackgroundColor={theme.backgroundElement}
+              showsBuildings
+              showsCompass={false}>
               <Marker coordinate={listing.coordinates} anchor={{ x: 0.5, y: 0.5 }}>
                 <View style={[styles.mapListingPin, { backgroundColor: theme.primary, shadowColor: theme.shadow }]}>
                   <ThemedText type="caption" style={{ color: theme.primaryText }}>
@@ -155,8 +228,8 @@ export default function ListingDetailScreen() {
                   </ThemedText>
                 </View>
               </Marker>
-            ) : null}
-          </MapView>
+            </MapView>
+          ) : null}
           <View style={[styles.mapCopy, { backgroundColor: theme.surfaceGlass, borderColor: theme.border }]}>
             <ThemedText type="sectionTitle">{listing.campusDistance ?? 'Near campus'}</ThemedText>
             <ThemedText type="caption" themeColor="textSecondary">
@@ -166,11 +239,11 @@ export default function ListingDetailScreen() {
         </View>
       </AppSection>
 
-      <AppSection title="Amenities">
+      <AppSection title="Amenities and notes">
         <SurfacePanel>
           <View style={styles.chips}>
             {amenities.map((amenity, index) => (
-              <PreferenceChip key={amenity} label={amenity} selected={index < 4} />
+              <PreferenceChip key={`${amenity}-${index}`} label={amenity} selected={index < 4} />
             ))}
           </View>
         </SurfacePanel>
@@ -181,25 +254,25 @@ export default function ListingDetailScreen() {
           <SettingRow
             icon={hiveSymbol({ ios: 'dollarsign.circle.fill', android: 'attach_money', web: 'attach_money' })}
             title="Rent"
-            subtitle="Estimated per person"
-            value={`${listing.price}/mo`}
-          />
-          <SettingRow
-            icon={hiveSymbol({ ios: 'bolt.fill', android: 'bolt', web: 'bolt' })}
-            title="Utilities"
-            subtitle="Electricity, gas, internet"
-            value={listing.utilities ?? '$120'}
+            subtitle="Current available range"
+            value={listing.price === 'Contact' ? 'Contact' : `${listing.price}/mo`}
           />
           <SettingRow
             icon={hiveSymbol({ ios: 'creditcard.fill', android: 'credit_card', web: 'credit_card' })}
-            title="Move-in estimate"
-            subtitle="First month and security deposit"
-            value={listing.deposit ? `${listing.price} + ${listing.deposit}` : '$3,700'}
+            title="Security deposit"
+            subtitle="Shown when supplied by the source"
+            value={formatMoney(primaryUnit?.security_deposit)}
+          />
+          <SettingRow
+            icon={hiveSymbol({ ios: 'calendar.badge.clock', android: 'event_available', web: 'event_available' })}
+            title="Lease term"
+            subtitle="Shortest available term"
+            value={primaryUnit?.lease_term_months ? `${primaryUnit.lease_term_months} mo` : 'Ask'}
           />
         </SurfacePanel>
       </AppSection>
 
-      <AppSection title="Campus and group fit">
+      <AppSection title="Search fit">
         <SurfacePanel>
           <SettingRow
             icon={hiveSymbol({ ios: 'figure.walk', android: 'directions_walk', web: 'directions_walk' })}
@@ -209,30 +282,41 @@ export default function ListingDetailScreen() {
           />
           <SettingRow
             icon={hiveSymbol({ ios: 'checkmark.seal.fill', android: 'verified', web: 'verified' })}
-            title="Budget works"
-            subtitle="All roommates are inside the rent range."
+            title="Preference match"
+            subtitle="Budget, commute, timing, and size."
             value={`${listing.match}%`}
           />
           <SettingRow
-            icon={hiveSymbol({ ios: 'tram.fill', android: 'directions_transit', web: 'directions_transit' })}
-            title="Commute overlap"
-            subtitle="Near transit and bike-friendly routes."
-            value="18m"
-          />
-          <SettingRow
-            icon={hiveSymbol({ ios: 'pawprint.fill', android: 'pets', web: 'pets' })}
-            title="Pet policy"
-            subtitle="Cats and small dogs allowed."
-            value="Friendly"
+            icon={hiveSymbol({ ios: 'link', android: 'link', web: 'link' })}
+            title="Source"
+            subtitle={detail.property.source_url}
+            value="UniShack"
           />
         </SurfacePanel>
       </AppSection>
 
+      {detail.faqs.length > 0 ? (
+        <AppSection title="FAQs">
+          <SurfacePanel>
+            {detail.faqs.slice(0, 4).map((faq) => (
+              <View key={faq.question} style={styles.faq}>
+                <ThemedText type="smallBold">{faq.question}</ThemedText>
+                <ThemedText type="caption" themeColor="textSecondary">
+                  {faq.answer}
+                </ThemedText>
+              </View>
+            ))}
+          </SurfacePanel>
+        </AppSection>
+      ) : null}
+
       <View style={styles.actions}>
-        <Button variant="ghost" fullWidth onPress={() => router.back()}>
+        <Button variant="ghost" fullWidth onPress={passListing}>
           Pass
         </Button>
-        <Button fullWidth>Add to saved</Button>
+        <Button fullWidth onPress={saveListing}>
+          {isSaved ? 'Saved' : 'Add to saved'}
+        </Button>
       </View>
     </Screen>
   );
@@ -320,14 +404,14 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   mapPanel: {
-    minHeight: 180,
-    borderRadius: Radius.xxl,
+    height: 238,
+    borderRadius: Radius.xl,
     borderWidth: 1,
     overflow: 'hidden',
   },
   mapListingPin: {
-    minWidth: 70,
-    height: 34,
+    minWidth: 68,
+    minHeight: 34,
     borderRadius: Radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
@@ -342,6 +426,9 @@ const styles = StyleSheet.create({
     borderRadius: Radius.lg,
     borderWidth: 1,
     padding: Spacing.three,
+  },
+  faq: {
+    gap: Spacing.one,
   },
   actions: {
     flexDirection: 'row',

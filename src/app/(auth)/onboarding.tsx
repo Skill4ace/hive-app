@@ -14,6 +14,7 @@ import { IconButton, IconGlyph, hiveSymbol } from '@/components/hive/primitives'
 import { ThemedText } from '@/components/themed-text';
 import { Fonts, Radius, Shadows, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { useHiveAppState, type SearchPreferences } from '@/lib/hive-state';
 
 type OnboardingStep =
   | 'identity'
@@ -92,7 +93,8 @@ export default function OnboardingScreen() {
   const router = useRouter();
   const { preview } = useLocalSearchParams<{ preview?: string }>();
   const theme = useTheme();
-  const [state, setState] = useState<OnboardingState>(initialState);
+  const { preferences, updatePreferences } = useHiveAppState();
+  const [state, setState] = useState<OnboardingState>(() => stateFromPreferences(preferences));
   const [stepIndex, setStepIndex] = useState(0);
   const [fade] = useState(() => new Animated.Value(1));
   const [translate] = useState(() => new Animated.Value(0));
@@ -127,6 +129,17 @@ export default function OnboardingScreen() {
   const goNext = () => {
     if (!canContinue) return;
     if (stepIndex === steps.length - 1) {
+      updatePreferences({
+        username: state.username.trim(),
+        campusName: state.campus.trim().toUpperCase(),
+        campusSlug: state.campus.trim().toLowerCase(),
+        budgetMin: state.budgetMin,
+        budgetMax: state.budgetMax,
+        moveIn: state.moveIn,
+        distanceMiles: state.distanceMiles,
+        bedrooms: state.bedrooms,
+        bathrooms: state.bathrooms,
+      });
       router.replace('/discover');
       return;
     }
@@ -227,6 +240,20 @@ export default function OnboardingScreen() {
       </View>
     </SafeAreaView>
   );
+}
+
+function stateFromPreferences(preferences: SearchPreferences): OnboardingState {
+  return {
+    ...initialState,
+    username: preferences.username,
+    campus: preferences.campusName,
+    budgetMin: preferences.budgetMin,
+    budgetMax: preferences.budgetMax,
+    moveIn: preferences.moveIn,
+    distanceMiles: preferences.distanceMiles,
+    bedrooms: preferences.bedrooms,
+    bathrooms: preferences.bathrooms,
+  };
 }
 
 const textureRows = [104, 188, 272, 356, 440, 524, 608, 692, 776];

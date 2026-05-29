@@ -1,5 +1,6 @@
+/* eslint-disable react-hooks/immutability, react-hooks/set-state-in-effect */
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
@@ -13,144 +14,82 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { AppTopBar, LocationFilterBar } from '@/components/hive/app-shell';
-import { Screen } from '@/components/hive/primitives';
-import { SwipeActionButton, SwipeListingCard } from '@/components/hive/listing';
-import { Spacing } from '@/constants/theme';
-import { demoListings } from '@/data/module-one-demo';
+import { SwipeActionButton, SwipeListingCard, type Listing } from '@/components/hive/listing';
+import { Button, EmptyState, Screen, Skeleton, hiveSymbol } from '@/components/hive/primitives';
 import { ThemedText } from '@/components/themed-text';
+import { Spacing } from '@/constants/theme';
+import { useRealListings } from '@/hooks/use-real-listings';
+import { useHiveAppState, type ListingDecision } from '@/lib/hive-state';
 
 export default function DiscoverScreen() {
   const router = useRouter();
   const { height, width } = useWindowDimensions();
-  const [activeIndex, setActiveIndex] = useState(0);
-  const [coverIndex, setCoverIndex] = useState<number | null>(null);
+  const { preferences, decisions, recordDecision, undoDecision } = useHiveAppState();
+  const { data: listings, loading, error, refresh } = useRealListings();
+  const [deck, setDeck] = useState<Listing[]>([]);
   const [isTransitioning, setIsTransitioning] = useState(false);
-  const [, setHistory] = useState<number[]>([]);
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
   const dragX = useSharedValue(0);
-  const coverOpacity = useSharedValue(0);
-  const revealPending = useSharedValue(0);
-  const nextIndex = (activeIndex + 1) % demoListings.length;
-  const featured = demoListings[activeIndex];
-  const nextListing = demoListings[nextIndex];
-  const coverListing = demoListings[coverIndex ?? nextIndex];
+  const featured = deck[0];
+  const nextListing = deck[1];
   const cardHeight = Math.min(575, Math.max(455, height * 0.58));
   const swipeThreshold = Math.min(width * 0.26, 128);
-
-  const resetMotion = () => {
+  const resetMotion = useCallback(() => {
     translateX.value = 0;
     translateY.value = 0;
     dragX.value = 0;
-    coverOpacity.value = 0;
-    revealPending.value = 0;
-  };
-
-  const resetDeckFromIndex = (index: number) => {
-    resetMotion();
-    setCoverIndex(null);
     setIsTransitioning(false);
-    setActiveIndex(index);
+  }, [dragX, translateX, translateY]);
+  const activeFilters = useMemo(() => {
+    let count = 0;
+    if (preferences.budgetMax < 3000) count += 1;
+    if (preferences.distanceMiles < 2.5) count += 1;
+    if (preferences.bedrooms > 1) count += 1;
+    if (preferences.moveIn !== 'Flexible') count += 1;
+    return count;
+  }, [preferences]);
+
+  useEffect(() => {
+    setDeck(listings.filter((listing) => !decisions[listing.id]));
+    resetMotion();
+  }, [decisions, listings, resetMotion]);
+
+  const removeTopCard = (decision: ListingDecision) => {
+    if (!featured) return;
+
+    recordDecision(featured.id, decision, featured.match);
+    setDeck((current) => current.slice(1));
+    resetMotion();
   };
 
   const undo = () => {
-    if (isTransitioning) {
-      return;
-    }
-
-    setHistory((previous) => {
-      const prior = previous.at(-1);
-
-      if (prior === undefined) {
-        resetDeckFromIndex((activeIndex - 1 + demoListings.length) % demoListings.length);
-        return previous;
-      }
-
-      resetDeckFromIndex(prior);
-      return previous.slice(0, -1);
-    });
-  };
-
-  const beginTransition = () => {
-    setIsTransitioning(true);
-  };
-
-  const finishTransition = () => {
-    setCoverIndex(null);
-    setIsTransitioning(false);
-  };
-
-  const revealCover = () => {
-    coverOpacity.value = withTiming(0, { duration: 110 }, (finished) => {
-      if (finished) {
-        runOnJS(finishTransition)();
-      }
-    });
-  };
-
-  const finishSwipe = () => {
-    const promotedIndex = nextIndex;
-
-    // Raise the opaque cover (showing the promoted listing) on top of the deck
-    // before anything reshuffles, so the index swap underneath is never visible.
-    // The active card keeps showing its old image until the promoted one decodes,
-    // so we only lift the cover once that image has actually loaded — never
-    // exposing a stale frame or a transparent half-loaded card.
-    coverOpacity.value = 1;
-    revealPending.value = 1;
-    setCoverIndex(promotedIndex);
-    setIsTransitioning(true);
-    setHistory((previous) => [...previous, activeIndex]);
-    setActiveIndex(promotedIndex);
-    translateX.value = 0;
-    translateY.value = 0;
-    dragX.value = 0;
-
-    // Safety net: if onLoad never fires (cache hit edge cases, load error),
-    // reveal anyway so the deck can never get stuck behind the cover.
-    setTimeout(() => {
-      if (revealPending.value === 1) {
-        revealPending.value = 0;
-        revealCover();
-      }
-    }, 450);
-  };
-
-  // Fired by the active card's image once the promoted listing has decoded and
-  // is on screen under the cover. That is the safe moment to fade the cover.
-  const handleActiveImageLoad = () => {
-    if (revealPending.value !== 1) {
-      return;
-    }
-
-    revealPending.value = 0;
-    revealCover();
+    if (isTransitioning) return;
+    undoDecision();
   };
 
   const openDetail = () => {
+    if (!featured) return;
     router.push({ pathname: '/listing/[id]', params: { id: featured.id } });
   };
 
-  const animateDecision = (direction: 1 | -1) => {
-    if (isTransitioning) {
-      return;
-    }
+  const animateDecision = (decision: ListingDecision) => {
+    if (isTransitioning || !featured) return;
 
     setIsTransitioning(true);
+    const direction = decision === 'liked' ? 1 : -1;
     const targetX = direction * (width + 140);
     dragX.value = withTiming(targetX, { duration: 230 });
     translateY.value = withTiming(-8, { duration: 120 });
     translateX.value = withTiming(targetX, { duration: 230 }, (finished) => {
-      if (!finished) {
-        return;
+      if (finished) {
+        runOnJS(removeTopCard)(decision);
       }
-
-      runOnJS(finishSwipe)();
     });
   };
 
   const panGesture = Gesture.Pan()
-    .enabled(!isTransitioning)
+    .enabled(!isTransitioning && Boolean(featured))
     .activeOffsetX([-12, 12])
     .onUpdate((event) => {
       dragX.value = event.translationX;
@@ -168,23 +107,21 @@ export default function DiscoverScreen() {
         return;
       }
 
-      runOnJS(beginTransition)();
-      const direction = projectedX > 0 ? 1 : -1;
-      const targetX = direction * (width + 140);
+      const decision = projectedX > 0 ? 'liked' : 'passed';
+      const targetX = (projectedX > 0 ? 1 : -1) * (width + 140);
+
+      runOnJS(setIsTransitioning)(true);
       dragX.value = withTiming(targetX, { duration: 230 });
       translateY.value = withTiming(event.translationY * 0.28, { duration: 160 });
       translateX.value = withTiming(targetX, { duration: 230 }, (finished) => {
         if (finished) {
-          runOnJS(finishSwipe)();
+          runOnJS(removeTopCard)(decision);
         }
       });
     });
 
-  // A discrete tap opens the listing detail. Composing it with the pan via
-  // Exclusive means the tap is only recognised when the pan never activates,
-  // so swiping moves to the next card without ever opening the detail view.
   const tapGesture = Gesture.Tap()
-    .enabled(!isTransitioning)
+    .enabled(!isTransitioning && Boolean(featured))
     .maxDistance(12)
     .onEnd((_event, success) => {
       if (success) {
@@ -220,11 +157,6 @@ export default function DiscoverScreen() {
     };
   });
 
-  const coverCardStyle = useAnimatedStyle(() => ({
-    zIndex: 4,
-    opacity: coverOpacity.value,
-  }));
-
   const passBadgeStyle = useAnimatedStyle(() => ({
     opacity: interpolate(dragX.value, [-swipeThreshold, -12], [1, 0], Extrapolation.CLAMP),
     transform: [
@@ -244,44 +176,84 @@ export default function DiscoverScreen() {
   return (
     <Screen scroll={false} contentStyle={styles.screen}>
       <AppTopBar title="Discover" />
-      <LocationFilterBar location="UCLA" activeFilters={2} />
+      <LocationFilterBar
+        location={preferences.campusName}
+        activeFilters={activeFilters}
+        onMapPress={() => router.push('/map')}
+        onFilterPress={() => router.push('/preferences')}
+      />
 
-      <View style={styles.deck}>
-        <View style={[styles.cardStack, { height: cardHeight }]}>
-          <Animated.View pointerEvents="none" style={[styles.cardSlot, nextCardStyle]}>
-            <SwipeListingCard listing={nextListing} height={cardHeight} />
-          </Animated.View>
-
-          <GestureDetector gesture={cardGesture}>
-            <Animated.View style={[styles.cardSlot, activeCardStyle]}>
-              <SwipeListingCard listing={featured} height={cardHeight} onImageLoad={handleActiveImageLoad} />
-              <Animated.View style={[styles.decisionBadge, styles.passBadge, passBadgeStyle]}>
-                <ThemedText type="sectionTitle" style={styles.passText}>
-                  Skip
-                </ThemedText>
-              </Animated.View>
-              <Animated.View style={[styles.decisionBadge, styles.likeBadge, likeBadgeStyle]}>
-                <ThemedText type="sectionTitle" style={styles.likeText}>
-                  Like
-                </ThemedText>
-              </Animated.View>
-            </Animated.View>
-          </GestureDetector>
-
-          <Animated.View pointerEvents="none" style={[styles.cardSlot, coverCardStyle]}>
-            <SwipeListingCard listing={coverListing} height={cardHeight} />
-          </Animated.View>
+      {loading ? (
+        <View style={styles.loadingDeck}>
+          <Skeleton height={cardHeight} radius={34} />
+          <View style={styles.loadingControls}>
+            <Skeleton width={58} height={58} />
+            <Skeleton width={58} height={58} />
+            <Skeleton width={58} height={58} />
+            <Skeleton width={58} height={58} />
+          </View>
         </View>
-        <View style={styles.swipeControls}>
-          <SwipeActionButton action="undo" onPress={undo} />
-          <SwipeActionButton action="pass" onPress={() => animateDecision(-1)} />
-          <SwipeActionButton action="like" onPress={() => animateDecision(1)} />
-          <SwipeActionButton
-            action="map"
-            onPress={() => router.push({ pathname: '/map', params: { selected: featured.id } })}
+      ) : error ? (
+        <View style={styles.emptyWrap}>
+          <EmptyState
+            icon={hiveSymbol({ ios: 'wifi.exclamationmark', android: 'wifi_off', web: 'wifi_off' })}
+            title="Listings did not load"
+            body={error}
+            action={<Button onPress={refresh}>Try again</Button>}
           />
         </View>
-      </View>
+      ) : !featured ? (
+        <View style={styles.emptyWrap}>
+          <EmptyState
+            icon={hiveSymbol({ ios: 'checkmark.seal.fill', android: 'check_circle', web: 'check_circle' })}
+            title="You're caught up"
+            body="Every current match has a decision. Undo the last swipe or review saved places."
+            action={
+              <View style={styles.emptyActions}>
+                <Button variant="secondary" onPress={undo}>
+                  Undo
+                </Button>
+                <Button onPress={() => router.push('/saved')}>Saved</Button>
+              </View>
+            }
+          />
+        </View>
+      ) : (
+        <View style={styles.deck}>
+          <View style={[styles.cardStack, { height: cardHeight }]}>
+            {nextListing ? (
+              <Animated.View pointerEvents="none" style={[styles.cardSlot, nextCardStyle]}>
+                <SwipeListingCard listing={nextListing} height={cardHeight} />
+              </Animated.View>
+            ) : null}
+
+            <GestureDetector gesture={cardGesture}>
+              <Animated.View style={[styles.cardSlot, activeCardStyle]}>
+                <SwipeListingCard listing={featured} height={cardHeight} />
+                <Animated.View style={[styles.decisionBadge, styles.passBadge, passBadgeStyle]}>
+                  <ThemedText type="sectionTitle" style={styles.passText}>
+                    Skip
+                  </ThemedText>
+                </Animated.View>
+                <Animated.View style={[styles.decisionBadge, styles.likeBadge, likeBadgeStyle]}>
+                  <ThemedText type="sectionTitle" style={styles.likeText}>
+                    Like
+                  </ThemedText>
+                </Animated.View>
+              </Animated.View>
+            </GestureDetector>
+          </View>
+          <View style={styles.swipeControls}>
+            <SwipeActionButton action="undo" onPress={undo} />
+            <SwipeActionButton action="pass" onPress={() => animateDecision('passed')} />
+            <SwipeActionButton action="like" onPress={() => animateDecision('liked')} />
+            <SwipeActionButton
+              action="map"
+              onPress={() => router.push({ pathname: '/map', params: { selected: featured.id } })}
+            />
+          </View>
+        </View>
+      )}
     </Screen>
   );
 }
@@ -344,6 +316,23 @@ const styles = StyleSheet.create({
     zIndex: 2,
     flexDirection: 'row',
     justifyContent: 'center',
+    gap: Spacing.two,
+  },
+  loadingDeck: {
+    flex: 1,
+    gap: Spacing.two,
+  },
+  loadingControls: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: Spacing.two,
+  },
+  emptyWrap: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  emptyActions: {
+    flexDirection: 'row',
     gap: Spacing.two,
   },
 });

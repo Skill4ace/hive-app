@@ -5,11 +5,13 @@ import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import MapView, { Marker, type Region } from 'react-native-maps';
 
 import { AppTopBar } from '@/components/hive/app-shell';
-import { IconButton, IconGlyph, Pill, Screen, hiveSymbol } from '@/components/hive/primitives';
+import { IconButton, IconGlyph, Pill, Screen, Skeleton, hiveSymbol, EmptyState, Button } from '@/components/hive/primitives';
 import { ThemedText } from '@/components/themed-text';
 import { Fonts, Radius, Shadows, Spacing } from '@/constants/theme';
-import { demoListings } from '@/data/module-one-demo';
+import { searchListings } from '@/data/real-listings';
+import { useRealListings } from '@/hooks/use-real-listings';
 import { useTheme } from '@/hooks/use-theme';
+import { useHiveAppState } from '@/lib/hive-state';
 
 const UCLA_REGION: Region = {
   latitude: 34.0667,
@@ -26,14 +28,18 @@ const UCLA_COORDINATE = {
 export default function MapScreen() {
   const router = useRouter();
   const theme = useTheme();
+  const { preferences } = useHiveAppState();
+  const { data: listings, loading, error, refresh } = useRealListings();
   const params = useLocalSearchParams<{ selected?: string }>();
-  const initialSelected = useMemo(
-    () => demoListings.find((listing) => listing.id === params.selected)?.id ?? demoListings[0].id,
-    [params.selected],
-  );
-  const [selectedId, setSelectedId] = useState(initialSelected);
-  const [query, setQuery] = useState('UCLA');
-  const selectedListing = demoListings.find((listing) => listing.id === selectedId) ?? demoListings[0];
+  const [selectedId, setSelectedId] = useState<string | null>(params.selected ?? null);
+  const [query, setQuery] = useState(preferences.campusName);
+  const filteredListings = useMemo(() => searchListings(listings, query), [listings, query]);
+  const selectedListing =
+    filteredListings.find((listing) => listing.id === selectedId) ??
+    filteredListings.find((listing) => listing.id === params.selected) ??
+    filteredListings[0] ??
+    listings[0] ??
+    null;
 
   return (
     <Screen scroll={false} contentStyle={styles.screen}>
@@ -57,112 +63,134 @@ export default function MapScreen() {
         <IconButton
           icon={hiveSymbol({ ios: 'slider.horizontal.3', android: 'tune', web: 'tune' })}
           label="Filter map"
+          onPress={() => router.push('/preferences')}
         />
       </View>
 
-      <View style={[styles.mapShell, { backgroundColor: theme.surface, borderColor: theme.border, shadowColor: theme.shadow }]}>
-        <MapView
-          style={StyleSheet.absoluteFill}
-          initialRegion={UCLA_REGION}
-          loadingEnabled
-          loadingBackgroundColor={theme.backgroundElement}
-          showsBuildings
-          showsCompass={false}
-          showsPointsOfInterests
-          legalLabelInsets={{ bottom: 10, left: 10, right: 10, top: 10 }}>
-          <Marker coordinate={UCLA_COORDINATE} anchor={{ x: 0.5, y: 0.5 }}>
-            <View style={styles.campusMarker}>
-              <View style={[styles.campusDot, { backgroundColor: theme.primary, shadowColor: theme.shadow }]}>
-                <IconGlyph
-                  name={hiveSymbol({ ios: 'graduationcap.fill', android: 'school', web: 'school' })}
-                  color={theme.primaryText}
-                  size={16}
-                />
-              </View>
-              <ThemedText type="caption" style={{ color: theme.primary }}>
-                UCLA
-              </ThemedText>
-            </View>
-          </Marker>
-
-          {demoListings.map((listing) => {
-            if (!listing.coordinates) {
-              return null;
-            }
-
-            const selected = listing.id === selectedId;
-
-            return (
-              <Marker
-                key={listing.id}
-                coordinate={listing.coordinates}
-                anchor={{ x: 0.5, y: 0.5 }}
-                onPress={() => setSelectedId(listing.id)}>
-                <View
-                  style={[
-                    styles.priceMarker,
-                    {
-                      backgroundColor: selected ? theme.primary : theme.surface,
-                      borderColor: selected ? theme.primary : theme.border,
-                      shadowColor: theme.shadow,
-                    },
-                  ]}>
-                  <ThemedText
-                    type="caption"
-                    style={{ color: selected ? theme.primaryText : theme.text }}>
-                    {listing.priceShort ?? listing.price}
+      {loading ? (
+        <View style={[styles.mapShell, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <Skeleton width="100%" height={470} radius={Radius.xxl} />
+        </View>
+      ) : error ? (
+        <View style={styles.emptyWrap}>
+          <EmptyState
+            icon={hiveSymbol({ ios: 'wifi.exclamationmark', android: 'wifi_off', web: 'wifi_off' })}
+            title="Map did not load"
+            body={error}
+            action={<Button onPress={refresh}>Try again</Button>}
+          />
+        </View>
+      ) : (
+        <>
+          <View style={[styles.mapShell, { backgroundColor: theme.surface, borderColor: theme.border, shadowColor: theme.shadow }]}>
+            <MapView
+              style={StyleSheet.absoluteFill}
+              initialRegion={UCLA_REGION}
+              loadingEnabled
+              loadingBackgroundColor={theme.backgroundElement}
+              showsBuildings
+              showsCompass={false}
+              showsPointsOfInterests
+              legalLabelInsets={{ bottom: 10, left: 10, right: 10, top: 10 }}>
+              <Marker coordinate={UCLA_COORDINATE} anchor={{ x: 0.5, y: 0.5 }}>
+                <View style={styles.campusMarker}>
+                  <View style={[styles.campusDot, { backgroundColor: theme.primary, shadowColor: theme.shadow }]}>
+                    <IconGlyph
+                      name={hiveSymbol({ ios: 'graduationcap.fill', android: 'school', web: 'school' })}
+                      color={theme.primaryText}
+                      size={16}
+                    />
+                  </View>
+                  <ThemedText type="caption" style={{ color: theme.primary }}>
+                    {preferences.campusName}
                   </ThemedText>
                 </View>
               </Marker>
-            );
-          })}
-        </MapView>
-      </View>
 
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`Open ${selectedListing.title}`}
-        onPress={() => router.push({ pathname: '/listing/[id]', params: { id: selectedListing.id } })}
-        style={({ pressed }) => [
-          styles.previewCard,
-          {
-            backgroundColor: theme.surface,
-            borderColor: theme.border,
-            shadowColor: theme.shadow,
-            opacity: pressed ? 0.78 : 1,
-          },
-        ]}>
-        <Image
-          source={{ uri: selectedListing.image }}
-          style={styles.previewImage}
-          contentFit="cover"
-          transition={220}
-        />
-        <View style={styles.previewCopy}>
-          <View style={styles.previewTop}>
-            <ThemedText type="sectionTitle" numberOfLines={1} style={styles.previewTitle}>
-              {selectedListing.title}
-            </ThemedText>
-            {selectedListing.status ? (
-              <Pill tone={selectedListing.status === 'discussing' ? 'warning' : 'primary'}>
-                {selectedListing.status === 'discussing' ? 'Discussing' : 'Matched'}
-              </Pill>
-            ) : null}
+              {filteredListings.map((listing) => {
+                if (!listing.coordinates) return null;
+
+                const selected = listing.id === selectedListing?.id;
+
+                return (
+                  <Marker
+                    key={listing.id}
+                    coordinate={listing.coordinates}
+                    anchor={{ x: 0.5, y: 0.5 }}
+                    onPress={() => setSelectedId(listing.id)}>
+                    <View
+                      style={[
+                        styles.priceMarker,
+                        {
+                          backgroundColor: selected ? theme.primary : theme.surface,
+                          borderColor: selected ? theme.primary : theme.border,
+                          shadowColor: theme.shadow,
+                        },
+                      ]}>
+                      <ThemedText
+                        type="caption"
+                        style={{ color: selected ? theme.primaryText : theme.text }}>
+                        {listing.priceShort ?? listing.price}
+                      </ThemedText>
+                    </View>
+                  </Marker>
+                );
+              })}
+            </MapView>
           </View>
-          <View style={styles.previewPriceLine}>
-            <ThemedText type="subtitle">{selectedListing.price}</ThemedText>
-            <ThemedText type="small" themeColor="textSecondary">
-              / mo
-            </ThemedText>
-          </View>
-          <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
-            {selectedListing.location}
-          </ThemedText>
-          <ThemedText type="smallBold" style={{ color: theme.primary }}>
-            {selectedListing.campusDistance}
-          </ThemedText>
-        </View>
-      </Pressable>
+
+          {selectedListing ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Open ${selectedListing.title}`}
+              onPress={() => router.push({ pathname: '/listing/[id]', params: { id: selectedListing.id } })}
+              style={({ pressed }) => [
+                styles.previewCard,
+                {
+                  backgroundColor: theme.surface,
+                  borderColor: theme.border,
+                  shadowColor: theme.shadow,
+                  opacity: pressed ? 0.78 : 1,
+                },
+              ]}>
+              <Image
+                source={{ uri: selectedListing.image }}
+                style={styles.previewImage}
+                contentFit="cover"
+                transition={220}
+              />
+              <View style={styles.previewCopy}>
+                <View style={styles.previewTop}>
+                  <ThemedText type="sectionTitle" numberOfLines={1} style={styles.previewTitle}>
+                    {selectedListing.title}
+                  </ThemedText>
+                  <Pill tone="primary">{selectedListing.match}%</Pill>
+                </View>
+                <View style={styles.previewPriceLine}>
+                  <ThemedText type="subtitle">{selectedListing.price}</ThemedText>
+                  {selectedListing.price !== 'Contact' ? (
+                    <ThemedText type="small" themeColor="textSecondary">
+                      / mo
+                    </ThemedText>
+                  ) : null}
+                </View>
+                <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
+                  {selectedListing.location}
+                </ThemedText>
+                <ThemedText type="smallBold" style={{ color: theme.primary }}>
+                  {selectedListing.campusDistance}
+                </ThemedText>
+              </View>
+            </Pressable>
+          ) : (
+            <EmptyState
+              icon={hiveSymbol({ ios: 'magnifyingglass', android: 'search', web: 'search' })}
+              title="No map results"
+              body="Try another building name, address, or manager."
+            />
+          )}
+        </>
+      )}
     </Screen>
   );
 }
@@ -264,5 +292,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'baseline',
     gap: 3,
+  },
+  emptyWrap: {
+    flex: 1,
+    justifyContent: 'center',
   },
 });

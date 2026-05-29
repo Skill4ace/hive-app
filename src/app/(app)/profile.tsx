@@ -6,55 +6,55 @@ import { Button, Pill, Screen, hiveSymbol } from '@/components/hive/primitives';
 import { PreferenceSummary } from '@/components/hive/listing';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
-
-const searchItems = [
-  {
-    icon: hiveSymbol({ ios: 'graduationcap.fill', android: 'school', web: 'school' }),
-    label: 'Campus',
-    value: 'UCLA',
-  },
-  {
-    icon: hiveSymbol({ ios: 'dollarsign.circle.fill', android: 'attach_money', web: 'attach_money' }),
-    label: 'Rent',
-    value: '$2,500 max',
-  },
-  {
-    icon: hiveSymbol({ ios: 'calendar', android: 'calendar_month', web: 'calendar_month' }),
-    label: 'Move-in',
-    value: 'August',
-  },
-  {
-    icon: hiveSymbol({ ios: 'figure.walk', android: 'directions_walk', web: 'directions_walk' }),
-    label: 'Commute',
-    value: 'Walk, 20 min',
-  },
-];
-
-const roomItems = [
-  {
-    icon: hiveSymbol({ ios: 'building.2.fill', android: 'apartment', web: 'apartment' }),
-    label: 'Type',
-    value: 'Apartment',
-  },
-  {
-    icon: hiveSymbol({ ios: 'bed.double.fill', android: 'bed', web: 'bed' }),
-    label: 'Bedrooms',
-    value: '2',
-  },
-  {
-    icon: hiveSymbol({ ios: 'bathtub.fill', android: 'bathtub', web: 'bathtub' }),
-    label: 'Bathrooms',
-    value: '1+',
-  },
-  {
-    icon: hiveSymbol({ ios: 'parkingsign.circle.fill', android: 'local_parking', web: 'local_parking' }),
-    label: 'Parking',
-    value: 'Nice to have',
-  },
-];
+import { useHiveAppState } from '@/lib/hive-state';
 
 export default function ProfileScreen() {
   const router = useRouter();
+  const { preferences, likedIds, passedIds } = useHiveAppState();
+  const searchItems = [
+    {
+      icon: hiveSymbol({ ios: 'graduationcap.fill', android: 'school', web: 'school' }),
+      label: 'Campus',
+      value: preferences.campusName,
+    },
+    {
+      icon: hiveSymbol({ ios: 'dollarsign.circle.fill', android: 'attach_money', web: 'attach_money' }),
+      label: 'Rent',
+      value: `$${preferences.budgetMin.toLocaleString()} - $${preferences.budgetMax.toLocaleString()}`,
+    },
+    {
+      icon: hiveSymbol({ ios: 'calendar', android: 'calendar_month', web: 'calendar_month' }),
+      label: 'Move-in',
+      value: preferences.moveIn,
+    },
+    {
+      icon: hiveSymbol({ ios: 'figure.walk', android: 'directions_walk', web: 'directions_walk' }),
+      label: 'Distance',
+      value: `Inside ${preferences.distanceMiles} mi`,
+    },
+  ];
+  const roomItems = [
+    {
+      icon: hiveSymbol({ ios: 'building.2.fill', android: 'apartment', web: 'apartment' }),
+      label: 'Type',
+      value: 'Apartment',
+    },
+    {
+      icon: hiveSymbol({ ios: 'bed.double.fill', android: 'bed', web: 'bed' }),
+      label: 'Bedrooms',
+      value: `${preferences.bedrooms}`,
+    },
+    {
+      icon: hiveSymbol({ ios: 'bathtub.fill', android: 'bathtub', web: 'bathtub' }),
+      label: 'Bathrooms',
+      value: `${preferences.bathrooms}+`,
+    },
+    {
+      icon: hiveSymbol({ ios: 'parkingsign.circle.fill', android: 'local_parking', web: 'local_parking' }),
+      label: 'Parking',
+      value: preferences.parking === 'needed' ? 'Needed' : preferences.parking === 'nice' ? 'Nice to have' : 'No preference',
+    },
+  ];
 
   return (
     <Screen contentStyle={styles.screen}>
@@ -63,13 +63,13 @@ export default function ProfileScreen() {
       <View style={styles.identity}>
         <View style={styles.avatar}>
           <ThemedText type="subtitle" style={styles.avatarText}>
-            R
+            {preferences.username.trim().slice(0, 1).toUpperCase() || 'H'}
           </ThemedText>
         </View>
         <View style={styles.identityCopy}>
-          <ThemedText type="title">@Rey</ThemedText>
+          <ThemedText type="title">@{preferences.username}</ThemedText>
           <ThemedText type="small" themeColor="textSecondary">
-            Swiping around UCLA
+            {likedIds.length} saved, {passedIds.length} passed
           </ThemedText>
         </View>
         <Pill tone="primary">Solo feed</Pill>

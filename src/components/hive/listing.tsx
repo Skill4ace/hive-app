@@ -36,12 +36,27 @@ export type Listing = {
   photos?: string[];
   beds: number;
   baths: number;
+  bedsLabel?: string;
+  bathsLabel?: string;
   amenities: string[];
   match: number;
   status?: 'matched' | 'discussing' | 'saved' | 'viewed';
   mapX?: number;
   mapY?: number;
   overview?: string;
+  minRent?: number;
+  maxRent?: number;
+  minBeds?: number;
+  maxBeds?: number;
+  minBaths?: number;
+  maxBaths?: number;
+  distanceMiles?: number;
+  moveInDate?: string;
+  sourceUrl?: string;
+  managerDisplayName?: string;
+  availableUnitCount?: number;
+  totalUnitCount?: number;
+  qualityScore?: number;
 };
 
 type ListingPhotoProps = {
@@ -77,7 +92,7 @@ type MatchBadgeProps = {
 export function MatchBadge({ value, compact }: MatchBadgeProps) {
   return (
     <Badge tone="primary">
-      {compact ? `${value}%` : `${value}% Roommate Fit`}
+      {compact ? `${value}%` : `${value}% Search Fit`}
     </Badge>
   );
 }
@@ -89,17 +104,21 @@ type PriceLabelProps = {
 };
 
 export function PriceLabel({ price, muted, inverted }: PriceLabelProps) {
+  const hasMonthlySuffix = price !== 'Contact';
+
   return (
     <View style={styles.priceRow}>
       <ThemedText type="smallBold" style={inverted ? styles.invertedText : undefined}>
         {price}
       </ThemedText>
-      <ThemedText
-        type="caption"
-        themeColor={inverted ? undefined : muted ? 'textTertiary' : 'textSecondary'}
-        style={inverted ? styles.invertedMutedText : undefined}>
-        / mo
-      </ThemedText>
+      {hasMonthlySuffix ? (
+        <ThemedText
+          type="caption"
+          themeColor={inverted ? undefined : muted ? 'textTertiary' : 'textSecondary'}
+          style={inverted ? styles.invertedMutedText : undefined}>
+          / mo
+        </ThemedText>
+      ) : null}
     </View>
   );
 }
@@ -108,20 +127,30 @@ type ListingMetaRowProps = {
   beds: number;
   baths: number;
   amenities?: string[];
+  bedsLabel?: string;
+  bathsLabel?: string;
   compact?: boolean;
   inverted?: boolean;
 };
 
-export function ListingMetaRow({ beds, baths, amenities = [], compact, inverted }: ListingMetaRowProps) {
+export function ListingMetaRow({
+  beds,
+  baths,
+  amenities = [],
+  bedsLabel,
+  bathsLabel,
+  compact,
+  inverted,
+}: ListingMetaRowProps) {
   const theme = useTheme();
   const items: { icon: IconName; label: string }[] = [
     {
       icon: hiveSymbol({ ios: 'bed.double.fill', android: 'bed', web: 'bed' }),
-      label: `${beds} Bed${beds === 1 ? '' : 's'}`,
+      label: bedsLabel ?? `${beds} Bed${beds === 1 ? '' : 's'}`,
     },
     {
       icon: hiveSymbol({ ios: 'bathtub.fill', android: 'bathtub', web: 'bathtub' }),
-      label: `${baths} Bath${baths === 1 ? '' : 's'}`,
+      label: bathsLabel ?? `${baths} Bath${baths === 1 ? '' : 's'}`,
     },
     ...amenities.slice(0, compact ? 1 : 2).map((amenity) => ({
       icon: hiveSymbol({
@@ -230,6 +259,8 @@ export function ListingCard({ listing, variant = 'grid', onPress, heroHeight = 3
             <ListingMetaRow
               beds={listing.beds}
               baths={listing.baths}
+              bedsLabel={listing.bedsLabel}
+              bathsLabel={listing.bathsLabel}
               amenities={listing.amenities}
               inverted
             />
@@ -249,7 +280,13 @@ export function ListingCard({ listing, variant = 'grid', onPress, heroHeight = 3
           <ThemedText type="caption" themeColor="textSecondary" numberOfLines={1}>
             {listing.location}
           </ThemedText>
-          <ListingMetaRow beds={listing.beds} baths={listing.baths} compact />
+          <ListingMetaRow
+            beds={listing.beds}
+            baths={listing.baths}
+            bedsLabel={listing.bedsLabel}
+            bathsLabel={listing.bathsLabel}
+            compact
+          />
         </View>
       ) : null}
     </Pressable>
@@ -266,8 +303,8 @@ type SwipeListingCardProps = {
 export function SwipeListingCard({ listing, height, onPress, onImageLoad }: SwipeListingCardProps) {
   const theme = useTheme();
   const chips = [
-    `${listing.beds} Beds`,
-    `${listing.baths} Bath${listing.baths === 1 ? '' : 's'}`,
+    listing.bedsLabel ?? `${listing.beds} Beds`,
+    listing.bathsLabel ?? `${listing.baths} Bath${listing.baths === 1 ? '' : 's'}`,
     ...listing.amenities.slice(0, 2),
   ];
 
@@ -448,7 +485,13 @@ export function SavedListingRow({ listing, onPress }: SavedListingRowProps) {
           {listing.location}
         </ThemedText>
         <View style={styles.savedRowMeta}>
-          <ListingMetaRow beds={listing.beds} baths={listing.baths} compact />
+          <ListingMetaRow
+            beds={listing.beds}
+            baths={listing.baths}
+            bedsLabel={listing.bedsLabel}
+            bathsLabel={listing.bathsLabel}
+            compact
+          />
           <ThemedText type="caption" style={{ color: theme.primary }} numberOfLines={1}>
             {listing.campusDistance}
           </ThemedText>

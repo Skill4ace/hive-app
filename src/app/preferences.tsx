@@ -1,22 +1,55 @@
 import { useRouter } from 'expo-router';
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { AppSection, AppTopBar, SurfacePanel } from '@/components/hive/app-shell';
 import { Button, IconButton, PreferenceChip, Screen, hiveSymbol } from '@/components/hive/primitives';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
+import {
+  useHiveAppState,
+  type CommuteMode,
+  type MoveInPreference,
+  type ParkingPreference,
+  type SearchPreferences,
+} from '@/lib/hive-state';
 
-const rentOptions = ['No max', '$1,500', '$2,000', '$2,500', '$3,000+'];
-const moveOptions = ['ASAP', 'August', 'September', 'Flexible'];
-const commuteOptions = ['Walk', 'Bike', 'Drive', 'Transit'];
-const commuteMaxOptions = ['10 min', '15 min', '20 min', 'Flexible'];
-const roomTypeOptions = ['Apartment', 'Studio', 'Private room', 'Shared room', 'Flexible'];
-const bedroomOptions = ['Studio', '1', '2', '3', '4+', 'Flexible'];
-const bathOptions = ['1+', '2+', 'Flexible'];
-const parkingOptions = ['Needed', 'Nice to have', 'No preference'];
+const rentOptions = [
+  { label: '$1,500', min: 600, max: 1500 },
+  { label: '$2,000', min: 600, max: 2000 },
+  { label: '$2,500', min: 600, max: 2500 },
+  { label: '$3,000+', min: 600, max: 3000 },
+];
+const moveOptions: { label: string; value: MoveInPreference }[] = [
+  { label: 'August', value: 'Aug' },
+  { label: 'September', value: 'Sep' },
+  { label: 'October', value: 'Oct' },
+  { label: 'Flexible', value: 'Flexible' },
+];
+const commuteOptions: { label: string; value: CommuteMode }[] = [
+  { label: 'Walk', value: 'walk' },
+  { label: 'Bike', value: 'bike' },
+  { label: 'Drive', value: 'drive' },
+  { label: 'Transit', value: 'transit' },
+];
+const distanceOptions = [0.75, 1, 1.25, 1.5, 2, 2.5];
+const bedroomOptions = [1, 2, 3, 4, 5];
+const bathOptions = [1, 2, 3, 4];
+const parkingOptions: { label: string; value: ParkingPreference }[] = [
+  { label: 'Needed', value: 'needed' },
+  { label: 'Nice to have', value: 'nice' },
+  { label: 'No preference', value: 'none' },
+];
 
 export default function PreferencesScreen() {
   const router = useRouter();
+  const { preferences, updatePreferences } = useHiveAppState();
+  const [draft, setDraft] = useState<SearchPreferences>(preferences);
+
+  const save = () => {
+    updatePreferences(draft);
+    router.back();
+  };
 
   return (
     <Screen contentStyle={styles.screen}>
@@ -34,7 +67,7 @@ export default function PreferencesScreen() {
       <AppSection title="Campus">
         <SurfacePanel>
           <View style={styles.singleRow}>
-            <ThemedText type="sectionTitle">UCLA</ThemedText>
+            <ThemedText type="sectionTitle">{draft.campusName}</ThemedText>
             <ThemedText type="caption" themeColor="textSecondary">
               More campuses later
             </ThemedText>
@@ -42,11 +75,75 @@ export default function PreferencesScreen() {
         </SurfacePanel>
       </AppSection>
 
-      <ChipSection title="Rent" options={rentOptions} selected="$2,500" />
-      <ChipSection title="Move-in" options={moveOptions} selected="August" />
-      <ChipSection title="Commute" options={commuteOptions} selected="Walk" />
-      <ChipSection title="Max commute" options={commuteMaxOptions} selected="20 min" />
-      <ChipSection title="Listing type" options={roomTypeOptions} selected="Apartment" />
+      <AppSection title="Rent">
+        <SurfacePanel>
+          <View style={styles.singleRow}>
+            <ThemedText type="smallBold">
+              ${draft.budgetMin.toLocaleString()} - ${draft.budgetMax.toLocaleString()}
+            </ThemedText>
+            <View style={styles.chips}>
+              {rentOptions.map((option) => (
+                <PreferenceChip
+                  key={option.label}
+                  label={option.label}
+                  selected={draft.budgetMax === option.max}
+                  onPress={() => setDraft((current) => ({ ...current, budgetMin: option.min, budgetMax: option.max }))}
+                />
+              ))}
+            </View>
+          </View>
+        </SurfacePanel>
+      </AppSection>
+
+      <AppSection title="Move-in">
+        <SurfacePanel>
+          <View style={styles.chips}>
+            {moveOptions.map((option) => (
+              <PreferenceChip
+                key={option.value}
+                label={option.label}
+                selected={draft.moveIn === option.value}
+                onPress={() => setDraft((current) => ({ ...current, moveIn: option.value }))}
+              />
+            ))}
+          </View>
+        </SurfacePanel>
+      </AppSection>
+
+      <AppSection title="Commute">
+        <SurfacePanel>
+          <View style={styles.subgroup}>
+            <ThemedText type="label" themeColor="textTertiary">
+              Mode
+            </ThemedText>
+            <View style={styles.chips}>
+              {commuteOptions.map((option) => (
+                <PreferenceChip
+                  key={option.value}
+                  label={option.label}
+                  selected={draft.commuteMode === option.value}
+                  onPress={() => setDraft((current) => ({ ...current, commuteMode: option.value }))}
+                />
+              ))}
+            </View>
+          </View>
+          <View style={styles.subgroup}>
+            <ThemedText type="label" themeColor="textTertiary">
+              Distance to campus
+            </ThemedText>
+            <View style={styles.chips}>
+              {distanceOptions.map((option) => (
+                <PreferenceChip
+                  key={option}
+                  label={`${option} mi`}
+                  selected={draft.distanceMiles === option}
+                  onPress={() => setDraft((current) => ({ ...current, distanceMiles: option }))}
+                />
+              ))}
+            </View>
+          </View>
+        </SurfacePanel>
+      </AppSection>
 
       <AppSection title="Room setup">
         <SurfacePanel>
@@ -56,7 +153,12 @@ export default function PreferencesScreen() {
             </ThemedText>
             <View style={styles.chips}>
               {bedroomOptions.map((option) => (
-                <PreferenceChip key={option} label={option} selected={option === '2'} />
+                <PreferenceChip
+                  key={option}
+                  label={option === 5 ? '5+' : String(option)}
+                  selected={draft.bedrooms === option}
+                  onPress={() => setDraft((current) => ({ ...current, bedrooms: option }))}
+                />
               ))}
             </View>
           </View>
@@ -66,7 +168,12 @@ export default function PreferencesScreen() {
             </ThemedText>
             <View style={styles.chips}>
               {bathOptions.map((option) => (
-                <PreferenceChip key={option} label={option} selected={option === '1+'} />
+                <PreferenceChip
+                  key={option}
+                  label={option === 4 ? '4+' : `${option}+`}
+                  selected={draft.bathrooms === option}
+                  onPress={() => setDraft((current) => ({ ...current, bathrooms: option }))}
+                />
               ))}
             </View>
           </View>
@@ -76,31 +183,22 @@ export default function PreferencesScreen() {
             </ThemedText>
             <View style={styles.chips}>
               {parkingOptions.map((option) => (
-                <PreferenceChip key={option} label={option} selected={option === 'Nice to have'} />
+                <PreferenceChip
+                  key={option.value}
+                  label={option.label}
+                  selected={draft.parking === option.value}
+                  onPress={() => setDraft((current) => ({ ...current, parking: option.value }))}
+                />
               ))}
             </View>
           </View>
         </SurfacePanel>
       </AppSection>
 
-      <Button fullWidth onPress={() => router.back()}>
+      <Button fullWidth onPress={save}>
         Save preferences
       </Button>
     </Screen>
-  );
-}
-
-function ChipSection({ title, options, selected }: { title: string; options: string[]; selected: string }) {
-  return (
-    <AppSection title={title}>
-      <SurfacePanel>
-        <View style={styles.chips}>
-          {options.map((option) => (
-            <PreferenceChip key={option} label={option} selected={option === selected} />
-          ))}
-        </View>
-      </SurfacePanel>
-    </AppSection>
   );
 }
 
