@@ -104,7 +104,7 @@ export default function OnboardingScreen() {
   const step = steps[stepIndex];
   const canContinue = useMemo(() => {
     if (step.key === 'identity') return state.username.trim().length >= 2 && state.campus.trim().length >= 2;
-    if (step.key === 'group') return Boolean(state.groupMode) || state.groupCode.trim().length > 0;
+    if (step.key === 'group') return state.groupMode === 'join' ? state.groupCode.trim().length === 4 : Boolean(state.groupMode);
     return true;
   }, [state, step.key]);
 
@@ -273,6 +273,10 @@ function stateFromPreferences(preferences: SearchPreferences): OnboardingState {
   };
 }
 
+function normalizeInviteInput(value: string) {
+  return value.replace(/[^a-z]/gi, '').toUpperCase().slice(0, 4);
+}
+
 const textureRows = [104, 188, 272, 356, 440, 524, 608, 692, 776];
 
 function renderStep(
@@ -307,10 +311,11 @@ function renderStep(
           <LargeInput
             label="Group code"
             value={state.groupCode}
-            placeholder="HIVE-A1B2C3"
+            placeholder="ABCD"
             onChangeText={(value) => {
-              update('groupCode', value.toUpperCase());
-              update('groupMode', value.trim().length > 0 ? 'join' : null);
+              const code = normalizeInviteInput(value);
+              update('groupCode', code);
+              update('groupMode', code.length > 0 ? 'join' : null);
             }}
           />
           <View style={styles.optionStack}>

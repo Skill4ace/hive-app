@@ -1,11 +1,10 @@
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Alert, StyleSheet, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, View } from 'react-native';
 
-import { AppSection, AppTopBar, StatStrip, SurfacePanel } from '@/components/hive/app-shell';
+import { AppSection, AppTopBar, SurfacePanel } from '@/components/hive/app-shell';
 import { GroupConsensusRow, type Listing } from '@/components/hive/listing';
 import {
-  AvatarStack,
   Button,
   EmptyState,
   FormField,
@@ -27,28 +26,31 @@ export default function GroupsScreen() {
   const theme = useTheme();
   const {
     group,
+    authUserId,
     members,
     loading,
     syncing,
     error,
+    outcomes,
     matchedOutcomes,
     partialOutcomes,
     createGroup,
     joinGroup,
     leaveGroup,
+    removeMember,
     refresh,
   } = useHiveGroup();
   const [inviteCode, setInviteCode] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const listingIds = useMemo(
-    () => [...matchedOutcomes, ...partialOutcomes].map((outcome) => outcome.propertyId),
-    [matchedOutcomes, partialOutcomes],
-  );
+  const [membersExpanded, setMembersExpanded] = useState(false);
+  const compactError = error ? readGroupErrorCopy(error) : null;
+  const listingIds = useMemo(() => outcomes.map((outcome) => outcome.propertyId), [outcomes]);
   const { data: listings, loading: listingsLoading } = useSavedRealListings(listingIds);
   const listingsById = useMemo(
     () => Object.fromEntries(listings.map((listing) => [listing.id, listing])),
     [listings],
   );
+  const isOwner = Boolean(group && authUserId === group.ownerId);
 
   const runGroupAction = async (action: () => Promise<void>) => {
     setSubmitting(true);
@@ -70,6 +72,19 @@ export default function GroupsScreen() {
         style: 'destructive',
         onPress: () => {
           void runGroupAction(leaveGroup);
+        },
+      },
+    ]);
+  };
+
+  const confirmRemoveMember = (member: (typeof members)[number]) => {
+    Alert.alert('Remove member?', `${member.name} will lose access to this group.`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: () => {
+          void runGroupAction(() => removeMember(member.userId));
         },
       },
     ]);
@@ -97,57 +112,60 @@ export default function GroupsScreen() {
         <>
           <SurfacePanel>
             <View style={styles.groupHeroTop}>
-              <View style={[styles.heroIcon, { backgroundColor: theme.primarySoft }]}>
+              <View style={[styles.groupIcon, { backgroundColor: theme.primarySoft }]}>
                 <IconGlyph
                   name={hiveSymbol({ ios: 'person.2.fill', android: 'groups', web: 'groups' })}
                   color={theme.primary}
-                  size={32}
+                  size={20}
                 />
               </View>
               <View style={styles.heroCopy}>
-                <ThemedText type="title">{group.name}</ThemedText>
-                <ThemedText type="small" themeColor="textSecondary">
-                  {members.length} {members.length === 1 ? 'member' : 'members'} voting on {group.campusName} housing
+                <ThemedText type="sectionTitle" numberOfLines={1}>
+                  {group.name}
                 </ThemedText>
-              </View>
-            </View>
-
-            <View style={[styles.inviteBox, { backgroundColor: theme.backgroundElement }]}>
-              <View>
-                <ThemedText type="label" themeColor="textTertiary">
-                  Group code
-                </ThemedText>
-                <ThemedText selectable type="subtitle">
-                  {group.inviteCode ?? 'Loading'}
+                <ThemedText type="caption" themeColor="textSecondary">
+                  {members.length} {members.length === 1 ? 'member' : 'members'} · {group.campusName}
                 </ThemedText>
               </View>
               <Pill tone={syncing ? 'warning' : 'primary'}>{syncing ? 'Syncing' : 'Live'}</Pill>
             </View>
 
-            <Button
-              fullWidth
-              rightIcon={hiveSymbol({ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' })}
-              onPress={() => router.push({ pathname: '/group/[id]', params: { id: group.id } })}>
-              Open group detail
-            </Button>
-          </SurfacePanel>
+            <View style={[styles.codeBox, { backgroundColor: theme.backgroundElement }]}>
+              <ThemedText type="label" themeColor="textTertiary">
+                Code
+              </ThemedText>
+              <ThemedText selectable type="subtitle" style={styles.codeText}>
+                {group.inviteCode ?? 'Loading'}
+              </ThemedText>
+            </View>
 
-          <StatStrip
-            items={[
-              { label: 'Matched', value: String(matchedOutcomes.length), tone: 'success' },
-              { label: 'Still deciding', value: String(partialOutcomes.length), tone: 'warning' },
-              { label: 'Members', value: String(members.length), tone: 'primary' },
-            ]}
-          />
+            <View style={[styles.memberDivider, { backgroundColor: theme.border }]} />
 
-          <AppSection title="Members">
-            <SurfacePanel>
-              <View style={styles.memberTop}>
-                <AvatarStack people={members.map((member) => ({ name: member.name }))} size={38} />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={membersExpanded ? 'Hide members' : 'Show members'}
+              onPress={() => setMembersExpanded((current) => !current)}
+              style={({ pressed }) => [styles.inlineMembersHeader, { opacity: pressed ? 0.72 : 1 }]}>
+              <ThemedText type="label" themeColor="textTertiary">
+                Members
+              </ThemedText>
+              <View style={styles.memberHeaderRight}>
                 <ThemedText type="caption" themeColor="textSecondary">
-                  Names show in vote status
+                  {members.length}
                 </ThemedText>
+                <IconGlyph
+                  name={hiveSymbol({
+                    ios: membersExpanded ? 'chevron.up' : 'chevron.down',
+                    android: membersExpanded ? 'keyboard_arrow_up' : 'keyboard_arrow_down',
+                    web: membersExpanded ? 'keyboard_arrow_up' : 'keyboard_arrow_down',
+                  })}
+                  color={theme.textTertiary}
+                  size={16}
+                />
               </View>
+            </Pressable>
+
+            {membersExpanded ? (
               <View style={styles.memberRows}>
                 {members.map((member) => (
                   <View key={member.userId} style={styles.memberRow}>
@@ -162,28 +180,36 @@ export default function GroupsScreen() {
                         {member.role === 'owner' ? 'Owner' : 'Member'}
                       </ThemedText>
                     </View>
+                    {isOwner && member.userId !== authUserId && member.role !== 'owner' ? (
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`Remove ${member.name}`}
+                        disabled={submitting}
+                        onPress={() => confirmRemoveMember(member)}
+                        style={({ pressed }) => [
+                          styles.memberRemove,
+                          {
+                            backgroundColor: theme.dangerSoft,
+                            opacity: submitting ? 0.46 : pressed ? 0.72 : 1,
+                          },
+                        ]}>
+                        <ThemedText type="caption" style={{ color: theme.danger }}>
+                          Remove
+                        </ThemedText>
+                      </Pressable>
+                    ) : null}
                   </View>
                 ))}
               </View>
-            </SurfacePanel>
-          </AppSection>
+            ) : null}
+          </SurfacePanel>
 
-          <OutcomeSection
-            title="Group matches"
-            emptyTitle="No shared matches yet"
-            emptyBody="When everyone likes the same place, it appears here and in Saved."
+          <OutcomeList
             loading={listingsLoading}
-            outcomes={matchedOutcomes}
+            matchedOutcomes={matchedOutcomes}
+            partialOutcomes={partialOutcomes}
             listingsById={listingsById}
-          />
-
-          <OutcomeSection
-            title="Still deciding"
-            emptyTitle="No partial matches yet"
-            emptyBody="Places with at least one like will show here while roommates vote."
-            loading={listingsLoading}
-            outcomes={partialOutcomes}
-            listingsById={listingsById}
+            onOpenListing={(id) => router.push({ pathname: '/listing/[id]', params: { id } })}
           />
 
           {error ? (
@@ -216,10 +242,10 @@ export default function GroupsScreen() {
             </View>
             <View style={styles.emptyCopy}>
               <ThemedText type="title" style={styles.centerText}>
-                Start a private group
+                Private group
               </ThemedText>
               <ThemedText type="small" themeColor="textSecondary" style={styles.centerText}>
-                Invite roommates and see which apartments everyone likes.
+                Create a code for your roommates.
               </ThemedText>
             </View>
             <Button
@@ -229,28 +255,35 @@ export default function GroupsScreen() {
               onPress={() => {
                 void runGroupAction(createGroup);
               }}>
-              Create group
+              Create
             </Button>
           </SurfacePanel>
 
           <SurfacePanel>
+            <ThemedText type="subtitle">Join a group</ThemedText>
             <FormField
-              label="Group code"
+              label="Code"
               value={inviteCode}
-              placeholder="HIVE-A1B2C3"
-              onChangeText={(value) => setInviteCode(value.toUpperCase())}
+              placeholder="ABCD"
+              onChangeText={(value) => setInviteCode(normalizeInviteInput(value))}
               icon={hiveSymbol({ ios: 'link', android: 'link', web: 'link' })}
-              error={error ?? undefined}
             />
+            {compactError ? (
+              <View style={[styles.errorBox, { backgroundColor: theme.dangerSoft }]}>
+                <ThemedText type="caption" style={{ color: theme.danger }}>
+                  {compactError}
+                </ThemedText>
+              </View>
+            ) : null}
             <Button
               fullWidth
               variant="secondary"
-              disabled={submitting || inviteCode.trim().length === 0}
+              disabled={submitting || inviteCode.trim().length !== 4}
               leftIcon={hiveSymbol({ ios: 'link', android: 'link', web: 'link' })}
               onPress={() => {
                 void runGroupAction(() => joinGroup(inviteCode));
               }}>
-              Join with code
+              Join
             </Button>
           </SurfacePanel>
         </>
@@ -259,55 +292,93 @@ export default function GroupsScreen() {
   );
 }
 
-function OutcomeSection({
-  title,
-  emptyTitle,
-  emptyBody,
+function readGroupErrorCopy(error: string) {
+  if (error.toLowerCase().includes('anonymous sign-ins are disabled')) {
+    return 'Login setting changed. Tap refresh.';
+  }
+
+  return 'Could not connect. Try refresh.';
+}
+
+function normalizeInviteInput(value: string) {
+  return value.replace(/[^a-z]/gi, '').toUpperCase().slice(0, 4);
+}
+
+function OutcomeList({
   loading,
-  outcomes,
+  matchedOutcomes,
+  partialOutcomes,
   listingsById,
+  onOpenListing,
 }: {
-  title: string;
-  emptyTitle: string;
-  emptyBody: string;
   loading: boolean;
-  outcomes: GroupOutcome[];
+  matchedOutcomes: GroupOutcome[];
+  partialOutcomes: GroupOutcome[];
   listingsById: Record<string, Listing>;
+  onOpenListing: (id: string) => void;
 }) {
+  const hasMatches = matchedOutcomes.length > 0;
+  const hasPartial = partialOutcomes.length > 0;
+
   return (
-    <AppSection title={title}>
+    <AppSection title="Shared list">
       {loading ? (
         <View style={styles.stack}>
           <Skeleton height={112} radius={Radius.xl} />
           <Skeleton height={112} radius={Radius.xl} />
         </View>
-      ) : outcomes.length === 0 ? (
+      ) : !hasMatches && !hasPartial ? (
         <EmptyState
           icon={hiveSymbol({ ios: 'sparkles', android: 'auto_awesome', web: 'auto_awesome' })}
-          title={emptyTitle}
-          body={emptyBody}
+          title="No shared places yet"
+          body="Like places in Discover to start."
         />
       ) : (
         <View style={styles.stack}>
-          {outcomes.map((outcome) => {
-            const listing = listingsById[outcome.propertyId];
-            if (!listing) return null;
-
-            return (
-              <GroupConsensusRow
-                key={outcome.propertyId}
-                listing={listing}
-                status={outcome.status === 'matched' ? 'matched' : 'discussing'}
-                likes={`${outcome.likes}/${outcome.members.length}`}
-                people={outcome.members
-                  .filter((member) => member.decision === 'liked')
-                  .map((member) => ({ name: member.name }))}
-              />
-            );
-          })}
+          {hasMatches ? <OutcomeRows title="Matches" outcomes={matchedOutcomes} listingsById={listingsById} onOpenListing={onOpenListing} /> : null}
+          {hasPartial ? <OutcomeRows title="Still deciding" outcomes={partialOutcomes} listingsById={listingsById} onOpenListing={onOpenListing} /> : null}
         </View>
       )}
     </AppSection>
+  );
+}
+
+function OutcomeRows({
+  title,
+  outcomes,
+  listingsById,
+  onOpenListing,
+}: {
+  title: string;
+  outcomes: GroupOutcome[];
+  listingsById: Record<string, Listing>;
+  onOpenListing: (id: string) => void;
+}) {
+  return (
+    <View style={styles.outcomeGroup}>
+      <ThemedText type="label" themeColor="textTertiary">
+        {title}
+      </ThemedText>
+      <View style={styles.stack}>
+        {outcomes.map((outcome) => {
+          const listing = listingsById[outcome.propertyId];
+          if (!listing) return null;
+
+          return (
+            <GroupConsensusRow
+              key={outcome.propertyId}
+              listing={listing}
+              status={outcome.status === 'matched' ? 'matched' : 'discussing'}
+              likes={`${outcome.likes}/${outcome.members.length}`}
+              people={outcome.members
+                .filter((member) => member.decision === 'liked')
+                .map((member) => ({ name: member.name }))}
+              onPress={() => onOpenListing(outcome.propertyId)}
+            />
+          );
+        })}
+      </View>
+    </View>
   );
 }
 
@@ -332,7 +403,14 @@ const styles = StyleSheet.create({
   groupHeroTop: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.three,
+    gap: Spacing.two,
+  },
+  groupIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: Radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   heroCopy: {
     flex: 1,
@@ -344,37 +422,66 @@ const styles = StyleSheet.create({
   centerText: {
     textAlign: 'center',
   },
-  inviteBox: {
-    minHeight: 74,
+  codeBox: {
+    minHeight: 54,
     borderRadius: Radius.lg,
-    padding: Spacing.three,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: Spacing.three,
-  },
-  memberTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: Spacing.three,
-  },
-  memberRows: {
     gap: Spacing.two,
   },
+  codeText: {
+    letterSpacing: 0,
+  },
+  memberDivider: {
+    height: 1,
+  },
+  inlineMembersHeader: {
+    minHeight: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.two,
+  },
+  memberHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
+  },
+  memberRows: {
+    gap: Spacing.one,
+  },
   memberRow: {
+    minHeight: 36,
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.two,
   },
   memberIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
   },
   memberCopy: {
     flex: 1,
+  },
+  memberRemove: {
+    minHeight: 28,
+    borderRadius: Radius.pill,
+    paddingHorizontal: Spacing.two,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  outcomeGroup: {
+    gap: Spacing.two,
+  },
+  errorBox: {
+    borderRadius: Radius.lg,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
   },
 });

@@ -85,6 +85,7 @@ type HiveGroupContextValue = {
   createGroup: (nextPreferences?: Partial<SearchPreferences>) => Promise<void>;
   joinGroup: (inviteCode: string, nextPreferences?: Partial<SearchPreferences>) => Promise<void>;
   leaveGroup: () => Promise<void>;
+  removeMember: (memberUserId: string) => Promise<void>;
   refresh: () => Promise<void>;
   deleteSyncedDecision: (listingId: string) => Promise<void>;
 };
@@ -392,6 +393,35 @@ export function HiveGroupProvider({ children }: { children: ReactNode }) {
     }
   }, [ensureSession]);
 
+  const removeMember = useCallback(
+    async (memberUserId: string) => {
+      setLoading(true);
+      setError(null);
+
+      try {
+        await ensureSession();
+
+        const supabase = getSupabaseClient();
+        const { error: removeError } = await supabase.rpc('remove_group_member', {
+          target_user_id: memberUserId,
+        });
+
+        if (removeError) {
+          throw new Error(`Unable to remove member: ${removeError.message}`);
+        }
+
+        await loadGroup();
+        lastSyncedKey.current = '';
+      } catch (nextError) {
+        setError(readErrorMessage(nextError));
+        throw nextError;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [ensureSession, loadGroup],
+  );
+
   const deleteSyncedDecision = useCallback(
     async (listingId: string) => {
       if (!authUserId) return;
@@ -456,6 +486,7 @@ export function HiveGroupProvider({ children }: { children: ReactNode }) {
       createGroup,
       joinGroup,
       leaveGroup,
+      removeMember,
       refresh,
       deleteSyncedDecision,
     }),
@@ -474,6 +505,7 @@ export function HiveGroupProvider({ children }: { children: ReactNode }) {
       outcomes,
       outcomesByListing,
       partialOutcomes,
+      removeMember,
       refresh,
       syncing,
       votes,
