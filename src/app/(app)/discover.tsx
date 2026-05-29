@@ -28,9 +28,12 @@ export default function DiscoverScreen() {
   const { data: listings, loading, error, refresh } = useRealListings();
   const [deck, setDeck] = useState<Listing[]>([]);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [coverListing, setCoverListing] = useState<Listing | null>(null);
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
   const dragX = useSharedValue(0);
+  const coverOpacity = useSharedValue(0);
+  const revealPending = useSharedValue(0);
   const featured = deck[0];
   const nextListing = deck[1];
   const cardHeight = Math.min(575, Math.max(455, height * 0.58));
@@ -39,8 +42,11 @@ export default function DiscoverScreen() {
     translateX.value = 0;
     translateY.value = 0;
     dragX.value = 0;
+    coverOpacity.value = 0;
+    revealPending.value = 0;
+    setCoverListing(null);
     setIsTransitioning(false);
-  }, [dragX, translateX, translateY]);
+  }, [coverOpacity, dragX, revealPending, translateX, translateY]);
   const activeFilters = useMemo(() => {
     let count = 0;
     if (preferences.budgetMax < 3000) count += 1;
@@ -50,17 +56,66 @@ export default function DiscoverScreen() {
     return count;
   }, [preferences]);
 
+  // The deck is derived from the data + decisions (so Undo re-adds cards).
+  // Motion is intentionally NOT reset here — that would yank an in-flight
+  // cover transition out from under itself when recordDecision updates
+  // `decisions`. resetMotion is driven explicitly instead.
   useEffect(() => {
     setDeck(listings.filter((listing) => !decisions[listing.id]));
-    resetMotion();
-  }, [decisions, listings, resetMotion]);
+  }, [decisions, listings]);
+
+  const finishTransition = () => {
+    setCoverListing(null);
+    setIsTransitioning(false);
+  };
+
+  const revealCover = () => {
+    coverOpacity.value = withTiming(0, { duration: 110 }, (finished) => {
+      if (finished) {
+        runOnJS(finishTransition)();
+      }
+    });
+  };
+
+  // Fired by the active card once its (newly promoted) image has decoded and
+  // is on screen, so the masking cover can fade to reveal an identical frame.
+  const handleActiveImageLoad = () => {
+    if (revealPending.value !== 1) return;
+    revealPending.value = 0;
+    revealCover();
+  };
 
   const removeTopCard = (decision: ListingDecision) => {
     if (!featured) return;
 
+    const promoted = deck[1];
     recordDecision(featured.id, decision, featured.match);
+
+    if (!promoted) {
+      setDeck((current) => current.slice(1));
+      resetMotion();
+      return;
+    }
+
+    // Drop an opaque cover showing the promoted card (its image is already
+    // warm from the peek slot) so the active card's source-swap is hidden,
+    // then snap the active card back to center underneath it.
+    setCoverListing(promoted);
+    coverOpacity.value = 1;
+    revealPending.value = 1;
     setDeck((current) => current.slice(1));
-    resetMotion();
+    translateX.value = 0;
+    translateY.value = 0;
+    dragX.value = 0;
+
+    // Safety net: reveal even if onLoad never fires (cached image / no source
+    // change between adjacent listings).
+    setTimeout(() => {
+      if (revealPending.value === 1) {
+        revealPending.value = 0;
+        revealCover();
+      }
+    }, 500);
   };
 
   const undo = () => {
@@ -157,6 +212,11 @@ export default function DiscoverScreen() {
     };
   });
 
+  const coverCardStyle = useAnimatedStyle(() => ({
+    zIndex: 4,
+    opacity: coverOpacity.value,
+  }));
+
   const passBadgeStyle = useAnimatedStyle(() => ({
     opacity: interpolate(dragX.value, [-swipeThreshold, -12], [1, 0], Extrapolation.CLAMP),
     transform: [
@@ -179,7 +239,6 @@ export default function DiscoverScreen() {
       <LocationFilterBar
         location={preferences.campusName}
         activeFilters={activeFilters}
-        onMapPress={() => router.push('/map')}
         onFilterPress={() => router.push('/preferences')}
       />
 
@@ -229,7 +288,11 @@ export default function DiscoverScreen() {
 
             <GestureDetector gesture={cardGesture}>
               <Animated.View style={[styles.cardSlot, activeCardStyle]}>
-                <SwipeListingCard listing={featured} height={cardHeight} />
+                <SwipeListingCard
+                  listing={featured}
+                  height={cardHeight}
+                  onImageLoad={handleActiveImageLoad}
+                />
                 <Animated.View style={[styles.decisionBadge, styles.passBadge, passBadgeStyle]}>
                   <ThemedText type="sectionTitle" style={styles.passText}>
                     Skip
@@ -242,6 +305,12 @@ export default function DiscoverScreen() {
                 </Animated.View>
               </Animated.View>
             </GestureDetector>
+
+            {coverListing ?? nextListing ? (
+              <Animated.View pointerEvents="none" style={[styles.cardSlot, coverCardStyle]}>
+                <SwipeListingCard listing={(coverListing ?? nextListing)!} height={cardHeight} />
+              </Animated.View>
+            ) : null}
           </View>
           <View style={styles.swipeControls}>
             <SwipeActionButton action="undo" onPress={undo} />
