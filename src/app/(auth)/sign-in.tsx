@@ -1,7 +1,23 @@
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, {
+  cancelAnimation,
+  Easing,
+  Extrapolation,
+  interpolate,
+  runOnJS,
+  type SharedValue,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 
 import { Button, IconGlyph, Screen, hiveSymbol } from '@/components/hive/primitives';
 import { ThemedText } from '@/components/themed-text';
@@ -72,7 +88,7 @@ export default function SignInScreen() {
       </View>
 
       <View style={styles.heroArea}>
-        <CardDeck />
+        <HeroDeck />
       </View>
 
       <View style={styles.footer}>
@@ -90,94 +106,231 @@ export default function SignInScreen() {
   );
 }
 
-function CardDeck() {
-  // Back-to-front: the last entry renders on top, so peel layers reveal a
-  // fanned deck. Transforms are static — this is a poster, not the live swiper.
+// Per-slot resting transforms — index 0 = front, 1 = mid, 2 = back. The deck
+// interpolates a card's live transform from its (animated) slot position so a
+// promotion smoothly springs mid -> front and back -> mid.
+const SLOT_ROTATE = [-2, 9, -10];
+const SLOT_TX = [0, 24, -26];
+const SLOT_TY = [0, 2, 8];
+const SLOT_SCALE = [1, 0.96, 0.92];
+const SLOT_INPUT = [0, 1, 2];
+
+// Springy enough to overshoot a touch on settle — that's the "bounce" on rest.
+const SETTLE_SPRING = { damping: 11, stiffness: 150, mass: 0.8 };
+const PROMOTE_SPRING = { damping: 15, stiffness: 160, mass: 0.9 };
+
+type DeckCard = { key: number; listingIndex: number };
+
+function HeroDeck() {
+  const { width } = useWindowDimensions();
+  // cards[0] is the front card. Swiping drops it and re-adds its listing at the
+  // back with a fresh key, so the deck loops forever.
+  const [cards, setCards] = useState<DeckCard[]>([
+    { key: 0, listingIndex: 0 },
+    { key: 1, listingIndex: 1 },
+    { key: 2, listingIndex: 2 },
+  ]);
+  const nextKey = useRef(3);
+  const idle = useSharedValue(0);
+
+  // A slow, low-amplitude float on the front card — just enough life to read as
+  // "interactive" without being distracting.
+  useEffect(() => {
+    idle.value = withRepeat(
+      withSequence(
+        withTiming(1, { duration: 1700, easing: Easing.inOut(Easing.quad) }),
+        withTiming(0, { duration: 1700, easing: Easing.inOut(Easing.quad) }),
+      ),
+      -1,
+      false,
+    );
+    return () => cancelAnimation(idle);
+  }, [idle]);
+
+  const handleSwiped = useCallback(() => {
+    // The fresh key remounts the recycled card cleanly at rest (no stale drag),
+    // which is what keeps the swipe loop simple and flash-free.
+    setCards((current) => {
+      const [front, ...rest] = current;
+      return [...rest, { key: nextKey.current++, listingIndex: front.listingIndex }];
+    });
+  }, []);
+
   return (
     <View style={styles.deck}>
-      <PreviewCard listing={PREVIEW_DECK[2]} style={styles.cardBack} dimmed />
-      <PreviewCard listing={PREVIEW_DECK[1]} style={styles.cardMid} dimmed />
-      <PreviewCard listing={PREVIEW_DECK[0]} style={styles.cardFront} showHints />
+      {cards.map((card, position) => (
+        <HeroCard
+          key={card.key}
+          listing={PREVIEW_DECK[card.listingIndex]}
+          position={position}
+          isFront={position === 0}
+          width={width}
+          idle={idle}
+          onSwiped={handleSwiped}
+        />
+      ))}
     </View>
   );
 }
 
-function PreviewCard({
-  listing,
-  style,
-  dimmed,
-  showHints,
-}: {
+type HeroCardProps = {
   listing: PreviewListing;
-  style: object;
-  dimmed?: boolean;
-  showHints?: boolean;
-}) {
+  position: number;
+  isFront: boolean;
+  width: number;
+  idle: SharedValue<number>;
+  onSwiped: () => void;
+};
+
+function HeroCard({ listing, position, isFront, width, idle, onSwiped }: HeroCardProps) {
   const theme = useTheme();
+  // Each card owns its own motion so the gesture only ever mutates local shared
+  // values (the recycled card resets its own drag below when it loops to back).
+  const slot = useSharedValue(position);
+  const dragX = useSharedValue(0);
+  const dragY = useSharedValue(0);
+  const locked = useSharedValue(false);
+  const prevPosition = useRef(position);
+
+  useEffect(() => {
+    // The just-swiped card recycles to the back while it's still off-screen —
+    // snap it there and clear its drag. Everything else springs into its slot.
+    if (position === 2 && prevPosition.current === 0) {
+      cancelAnimation(slot);
+      slot.value = 2;
+      dragX.value = 0;
+      dragY.value = 0;
+      locked.value = false;
+    } else {
+      slot.value = withSpring(position, PROMOTE_SPRING);
+    }
+    prevPosition.current = position;
+    // slot/dragX/dragY/locked are stable useSharedValue refs, intentionally omitted.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [position]);
+
+  const threshold = Math.min(width * 0.22, 120);
+
+  const pan = Gesture.Pan()
+    .enabled(isFront)
+    .onUpdate((event) => {
+      if (locked.value) return;
+      dragX.value = event.translationX;
+      dragY.value = event.translationY * 0.4;
+    })
+    .onEnd((event) => {
+      if (locked.value) return;
+      const projected = event.translationX + event.velocityX * 0.16;
+
+      if (Math.abs(projected) > threshold) {
+        locked.value = true;
+        const direction = projected > 0 ? 1 : -1;
+        dragY.value = withTiming(dragY.value - 12, { duration: 160 });
+        dragX.value = withTiming(direction * (width + 220), { duration: 240 }, (finished) => {
+          if (finished) runOnJS(onSwiped)();
+        });
+        return;
+      }
+
+      dragX.value = withSpring(0, SETTLE_SPRING);
+      dragY.value = withSpring(0, SETTLE_SPRING);
+    });
+
+  const animatedStyle = useAnimatedStyle(() => {
+    const p = slot.value;
+    const baseRotate = interpolate(p, SLOT_INPUT, SLOT_ROTATE);
+    const tx = interpolate(p, SLOT_INPUT, SLOT_TX);
+    const ty = interpolate(p, SLOT_INPUT, SLOT_TY);
+    const scale = interpolate(p, SLOT_INPUT, SLOT_SCALE);
+
+    const dx = isFront ? dragX.value : 0;
+    const dy = isFront ? dragY.value : 0;
+    const dragRotate = isFront
+      ? interpolate(dragX.value, [-width, 0, width], [-14, 0, 14], Extrapolation.CLAMP)
+      : 0;
+    const floatY = isFront ? interpolate(idle.value, [0, 1], [0, -7]) : 0;
+    const floatRotate = isFront ? interpolate(idle.value, [0, 1], [0, 1.1]) : 0;
+
+    return {
+      transform: [
+        { translateX: tx + dx },
+        { translateY: ty + dy + floatY },
+        { rotate: `${baseRotate + dragRotate + floatRotate}deg` },
+        { scale },
+      ],
+    };
+  });
 
   return (
-    <View style={[styles.card, { backgroundColor: listing.tint, shadowColor: theme.shadow }, style]}>
-      <Image source={{ uri: listing.photo }} style={StyleSheet.absoluteFill} contentFit="cover" transition={260} />
-      <LinearGradient
-        colors={['transparent', 'rgba(17, 7, 21, 0.55)', 'rgba(17, 7, 21, 0.9)']}
-        locations={[0, 0.5, 1]}
-        style={styles.cardGradient}
-      />
-      {dimmed ? <View style={styles.cardDim} /> : null}
-
-      <View style={styles.walkPill}>
-        <IconGlyph
-          name={hiveSymbol({ ios: 'figure.walk', android: 'directions_walk', web: 'directions_walk' })}
-          color="#FFFFFF"
-          size={13}
+    <GestureDetector gesture={pan}>
+      <Animated.View
+        style={[
+          styles.card,
+          { backgroundColor: listing.tint, shadowColor: theme.shadow, zIndex: 2 - position },
+          animatedStyle,
+        ]}>
+        <Image source={{ uri: listing.photo }} style={StyleSheet.absoluteFill} contentFit="cover" transition={260} />
+        <LinearGradient
+          colors={['transparent', 'rgba(17, 7, 21, 0.55)', 'rgba(17, 7, 21, 0.9)']}
+          locations={[0, 0.5, 1]}
+          style={styles.cardGradient}
         />
-        <ThemedText type="caption" style={styles.walkPillText}>
-          {listing.walk}
-        </ThemedText>
-      </View>
+        {isFront ? null : <View style={styles.cardDim} />}
 
-      <View style={styles.cardInfo}>
-        <ThemedText type="subtitle" style={styles.cardTitle} numberOfLines={1}>
-          {listing.title}
-        </ThemedText>
-        <View style={styles.priceRow}>
-          <ThemedText type="smallBold" style={styles.cardPrice}>
-            {listing.price}
-          </ThemedText>
-          <ThemedText type="caption" style={styles.cardPriceUnit}>
-            / mo
+        <View style={styles.walkPill}>
+          <IconGlyph
+            name={hiveSymbol({ ios: 'figure.walk', android: 'directions_walk', web: 'directions_walk' })}
+            color="#FFFFFF"
+            size={13}
+          />
+          <ThemedText type="caption" style={styles.walkPillText}>
+            {listing.walk}
           </ThemedText>
         </View>
-        <View style={styles.chipRow}>
-          {listing.chips.map((chip) => (
-            <View key={chip} style={styles.chip}>
-              <ThemedText type="caption" style={styles.chipText}>
-                {chip}
-              </ThemedText>
+
+        <View style={styles.cardInfo}>
+          <ThemedText type="subtitle" style={styles.cardTitle} numberOfLines={1}>
+            {listing.title}
+          </ThemedText>
+          <View style={styles.priceRow}>
+            <ThemedText type="smallBold" style={styles.cardPrice}>
+              {listing.price}
+            </ThemedText>
+            <ThemedText type="caption" style={styles.cardPriceUnit}>
+              / mo
+            </ThemedText>
+          </View>
+          <View style={styles.chipRow}>
+            {listing.chips.map((chip) => (
+              <View key={chip} style={styles.chip}>
+                <ThemedText type="caption" style={styles.chipText}>
+                  {chip}
+                </ThemedText>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        {isFront ? (
+          <View style={styles.hintRow}>
+            <View style={[styles.hint, styles.hintSkip]}>
+              <IconGlyph
+                name={hiveSymbol({ ios: 'xmark', android: 'close', web: 'close' })}
+                color="#241027"
+                size={20}
+              />
             </View>
-          ))}
-        </View>
-      </View>
-
-      {showHints ? (
-        <View style={styles.hintRow}>
-          <View style={[styles.hint, styles.hintSkip]}>
-            <IconGlyph
-              name={hiveSymbol({ ios: 'xmark', android: 'close', web: 'close' })}
-              color="#241027"
-              size={20}
-            />
+            <View style={[styles.hint, styles.hintLike, { backgroundColor: theme.primary }]}>
+              <IconGlyph
+                name={hiveSymbol({ ios: 'heart.fill', android: 'favorite', web: 'favorite' })}
+                color="#FFFFFF"
+                size={20}
+              />
+            </View>
           </View>
-          <View style={[styles.hint, styles.hintLike, { backgroundColor: theme.primary }]}>
-            <IconGlyph
-              name={hiveSymbol({ ios: 'heart.fill', android: 'favorite', web: 'favorite' })}
-              color="#FFFFFF"
-              size={20}
-            />
-          </View>
-        </View>
-      ) : null}
-    </View>
+        ) : null}
+      </Animated.View>
+    </GestureDetector>
   );
 }
 
@@ -246,15 +399,6 @@ const styles = StyleSheet.create({
     borderColor: '#FFFFFF',
     overflow: 'hidden',
     ...Shadows.floating,
-  },
-  cardBack: {
-    transform: [{ rotate: '-10deg' }, { translateX: -26 }, { translateY: 8 }, { scale: 0.92 }],
-  },
-  cardMid: {
-    transform: [{ rotate: '9deg' }, { translateX: 24 }, { translateY: 2 }, { scale: 0.96 }],
-  },
-  cardFront: {
-    transform: [{ rotate: '-2deg' }],
   },
   cardGradient: {
     position: 'absolute',
