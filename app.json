@@ -10,7 +10,6 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "bundleIdentifier": "com.skill4ace.hiveofficial",
-      "buildNumber": "1",
       "supportsTablet": false,
       "icon": "./assets/images/hivelogoappicon.png",
       "infoPlist": {
@@ -60,6 +59,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "013781a3-487e-4cd4-96cf-8f1a44c3c0d7"
+      }
     }
   }
 }
