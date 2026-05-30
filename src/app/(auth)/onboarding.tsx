@@ -38,40 +38,34 @@ type OnboardingState = {
   bathrooms: number;
 };
 
-const steps: { key: OnboardingStep; eyebrow: string; title: string; subtitle?: string }[] = [
+const steps: { key: OnboardingStep; title: string; subtitle?: string }[] = [
   {
     key: 'identity',
-    eyebrow: 'Your search',
-    title: 'Start with your search',
-    subtitle: 'Choose a username and campus.',
+    title: 'Start your search',
+    subtitle: 'Choose a username.',
   },
   {
     key: 'group',
-    eyebrow: 'Private group',
     title: 'Add your group',
     subtitle: 'Use a private code or create one.',
   },
   {
     key: 'rent',
-    eyebrow: 'Budget',
     title: "What's your budget?",
     subtitle: 'Set the monthly listing range.',
   },
   {
     key: 'commute',
-    eyebrow: 'Distance to campus',
     title: 'How close do you want to be?',
     subtitle: 'We rank homes inside this radius first.',
   },
   {
     key: 'room',
-    eyebrow: 'The home',
     title: 'Size and timing',
     subtitle: 'Set the shape of the place and when you need it.',
   },
   {
     key: 'review',
-    eyebrow: 'Ready',
     title: 'Ready to swipe',
     subtitle: 'Group matches appear after everyone votes.',
   },
@@ -103,7 +97,7 @@ export default function OnboardingScreen() {
   const [translate] = useState(() => new Animated.Value(0));
   const step = steps[stepIndex];
   const canContinue = useMemo(() => {
-    if (step.key === 'identity') return state.username.trim().length >= 2 && state.campus.trim().length >= 2;
+    if (step.key === 'identity') return state.username.trim().length >= 2;
     if (step.key === 'group') return state.groupMode === 'join' ? state.groupCode.trim().length === 4 : Boolean(state.groupMode);
     return true;
   }, [state, step.key]);
@@ -135,8 +129,9 @@ export default function OnboardingScreen() {
       setSubmitting(true);
       const nextPreferences = {
         username: state.username.trim(),
-        campusName: state.campus.trim().toUpperCase(),
-        campusSlug: state.campus.trim().toLowerCase(),
+        // Campus is locked to UCLA for v1.
+        campusName: 'UCLA',
+        campusSlug: 'ucla',
         budgetMin: state.budgetMin,
         budgetMax: state.budgetMax,
         moveIn: state.moveIn,
@@ -199,23 +194,20 @@ export default function OnboardingScreen() {
             size="sm"
             onPress={goBack}
           />
-          <View style={styles.progressBubbles}>
+          <View style={styles.progressSegments}>
             {steps.map((item, index) => (
               <View
                 key={item.key}
                 style={[
-                  styles.progressBubble,
+                  styles.progressSegment,
                   {
                     backgroundColor: index <= stepIndex ? theme.primary : theme.backgroundElement,
-                    opacity: index === stepIndex || index < stepIndex ? 1 : 0.82,
+                    opacity: index <= stepIndex ? 1 : 0.72,
                   },
                 ]}
               />
             ))}
           </View>
-          <ThemedText type="caption" themeColor="textTertiary">
-            {stepIndex + 1}/{steps.length}
-          </ThemedText>
         </View>
 
         <ScrollView
@@ -224,9 +216,6 @@ export default function OnboardingScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}>
           <View style={styles.headerCopy}>
-            <ThemedText type="label" themeColor="textTertiary">
-              {step.eyebrow}
-            </ThemedText>
             <ThemedText type="title" style={styles.title}>
               {step.title}
             </ThemedText>
@@ -288,7 +277,6 @@ function renderStep(
     case 'identity':
       return (
         <View style={styles.identityStage}>
-          <Image source={require('../../../hivelogoappicon.png')} style={styles.miniLogo} contentFit="cover" />
           <View style={styles.inputStack}>
             <LargeInput
               label="Username"
@@ -296,12 +284,7 @@ function renderStep(
               placeholder="choose a username"
               onChangeText={(value) => update('username', value)}
             />
-            <LargeInput
-              label="Campus"
-              value={state.campus}
-              placeholder="UCLA"
-              onChangeText={(value) => update('campus', value)}
-            />
+            <LockedCampusCard />
           </View>
         </View>
       );
@@ -417,6 +400,29 @@ function LargeInput({
   );
 }
 
+function LockedCampusCard() {
+  const theme = useTheme();
+
+  return (
+    <View style={styles.largeInputWrap}>
+      <ThemedText type="label" themeColor="textTertiary">
+        Campus
+      </ThemedText>
+      <View
+        style={[
+          styles.largeInput,
+          styles.campusLocked,
+          { borderColor: theme.border, backgroundColor: theme.backgroundElement },
+        ]}>
+        <ThemedText style={[styles.campusLockedValue, { color: theme.text }]}>UCLA</ThemedText>
+      </View>
+      <ThemedText type="caption" themeColor="textSecondary">
+        More campuses coming soon.
+      </ThemedText>
+    </View>
+  );
+}
+
 function OptionRow({
   label,
   detail,
@@ -489,7 +495,7 @@ function ReviewStage({ state }: { state: OnboardingState }) {
         <View style={styles.reviewHeroCopy}>
           <ThemedText type="subtitle">@{state.username || 'username'}</ThemedText>
           <ThemedText type="small" themeColor="textSecondary">
-            {state.campus} apartment deck
+            UCLA apartment deck
           </ThemedText>
         </View>
       </View>
@@ -594,14 +600,13 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.two,
     paddingBottom: Spacing.two,
   },
-  progressBubbles: {
+  progressSegments: {
     flex: 1,
-    minHeight: 16,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 7,
   },
-  progressBubble: {
+  progressSegment: {
     flex: 1,
     height: 8,
     borderRadius: Radius.pill,
@@ -631,16 +636,13 @@ const styles = StyleSheet.create({
     maxWidth: 360,
   },
   identityStage: {
-    gap: Spacing.five,
+    gap: Spacing.three,
     alignItems: 'center',
   },
-  miniLogo: {
-    width: 116,
-    height: 116,
-    borderRadius: Radius.xl,
-  },
   inputStack: {
-    alignSelf: 'stretch',
+    width: '100%',
+    maxWidth: 520,
+    alignSelf: 'center',
     gap: Spacing.three,
   },
   stage: {
@@ -656,6 +658,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     fontFamily: Fonts.display,
     fontSize: 24,
+    fontWeight: '700',
+  },
+  campusLocked: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    paddingVertical: Spacing.two,
+  },
+  campusLockedValue: {
+    fontFamily: Fonts.display,
+    fontSize: 24,
+    lineHeight: 31,
     fontWeight: '700',
   },
   optionStack: {
