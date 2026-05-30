@@ -83,6 +83,8 @@ const initialState: OnboardingState = {
   bathrooms: 1,
 };
 
+const INVITE_CODE_LENGTH = 6;
+
 export default function OnboardingScreen() {
   const router = useRouter();
   const { preview } = useLocalSearchParams<{ preview?: string }>();
@@ -99,7 +101,9 @@ export default function OnboardingScreen() {
   const step = steps[stepIndex];
   const canContinue = useMemo(() => {
     if (step.key === 'identity') return state.username.trim().length >= 2;
-    if (step.key === 'group') return state.groupMode === 'join' ? state.groupCode.trim().length === 4 : Boolean(state.groupMode);
+    if (step.key === 'group') {
+      return state.groupMode === 'join' ? state.groupCode.trim().length === INVITE_CODE_LENGTH : Boolean(state.groupMode);
+    }
     return true;
   }, [state, step.key]);
 
@@ -285,7 +289,7 @@ function stateFromPreferences(preferences: SearchPreferences): OnboardingState {
 }
 
 function normalizeInviteInput(value: string) {
-  return value.replace(/[^a-z]/gi, '').toUpperCase().slice(0, 4);
+  return value.replace(/[^a-z]/gi, '').toUpperCase().slice(0, INVITE_CODE_LENGTH);
 }
 
 function readErrorMessage(error: unknown) {
@@ -322,7 +326,7 @@ function renderStep(
           <LargeInput
             label="Group code"
             value={state.groupCode}
-            placeholder="ABCD"
+            placeholder="ABCDEF"
             onChangeText={(value) => {
               const code = normalizeInviteInput(value);
               clearGroupCodeError();

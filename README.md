@@ -1,56 +1,108 @@
-# Welcome to your Expo app 👋
+# Hive
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Hive is a mobile app for college students finding shared housing near campus. It makes apartment hunting collaborative around campus, commute, budget, and roommate fit. Currently lists properties near UCLA.
 
-## Get started
+## Stack
 
-1. Install dependencies
+- **Expo SDK 56** with the new architecture and React Compiler
+- **Expo Router** — file-based routing with typed routes
+- **React 19** / **React Native 0.85**
+- **Supabase** — Postgres, Row Level Security, and storage for listing media
+- **react-native-maps**, **Reanimated**, **Gesture Handler**
+- **expo-sqlite** for local session/state persistence
 
-   ```bash
-   npm install
-   ```
+## Getting started
 
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+### 1. Install dependencies
 
 ```bash
-npm run reset-project
+npm install
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+### 2. Configure environment
 
-### Other setup steps
+Copy the example env file and fill in your Supabase credentials:
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+```bash
+cp .env.example .env
+```
 
-## Learn more
+| Variable | Used by | Notes |
+| --- | --- | --- |
+| `EXPO_PUBLIC_SUPABASE_URL` | App | Public Supabase project URL |
+| `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | App | Public/anon key shipped with the client |
+| `SUPABASE_URL` | Scripts | Project URL for ingestion scripts |
+| `SUPABASE_PUBLISHABLE_KEY` | Scripts | Public key for ingestion scripts |
+| `SUPABASE_SERVICE_ROLE_KEY` | Scripts | Server-only key — never ship in the app |
+| `SUPABASE_STORAGE_BUCKET` | Scripts | Listing media bucket (`listing-media`) |
 
-To learn more about developing your project with Expo, look at the following resources:
+Only the `EXPO_PUBLIC_*` keys are bundled into the app. Service-role and other secrets are used solely by the local ingestion scripts.
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+### 3. Start the app
 
-## Join the community
+```bash
+npm start        # Expo dev server
+npm run ios      # iOS simulator
+npm run android  # Android emulator
+npm run web      # Web
+```
 
-Join our community of developers creating universal apps.
+## Project structure
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+```text
+src/
+  app/                 # Expo Router routes (file-based)
+    (app)/             # Authenticated app shell + five tabs
+      discover.tsx     #   Swipe through listings
+      map.tsx          #   Compare listings by distance to campus
+      saved.tsx        #   Liked apartments and shared matches
+      groups.tsx       #   Create or join a roommate group
+      profile.tsx      #   Preferences, account, notifications
+    (auth)/            # Sign-in and onboarding flow
+    listing/[id].tsx   # Listing detail
+    group/[id].tsx     # Group detail
+  components/          # Shared primitives + housing components
+  constants/theme.ts   # Color, typography, spacing tokens
+  hooks/               # Theme + data hooks
+  lib/                 # Supabase client, app + group state
+  data/                # Listing and demo data
+supabase/migrations/   # Database schema, RLS policies, group matching
+scripts/unishack/      # Listing ingestion pipeline
+```
+
+## Navigation
+
+The core experience is a five-tab bar:
+
+- **Discover** — swipe through listings and open detail views
+- **Map** — compare listings by distance to campus and neighborhood
+- **Saved** — review liked apartments and shared matches
+- **Groups** — create or join a roommate group
+- **Profile** — edit preferences, account, notifications, and privacy
+
+## Listing ingestion
+
+Listings are sourced through the `unishack` pipeline. Each step is a separate script:
+
+```bash
+npm run unishack:discover       # Find listing URLs
+npm run unishack:scrape         # Scrape listing details
+npm run unishack:mirror-images  # Mirror images into Supabase storage
+npm run unishack:import         # Import into the database
+npm run unishack:test           # Test the parser
+```
+
+See [`docs/unishack-ucla-scraper.md`](docs/unishack-ucla-scraper.md) for details.
+
+## Database
+
+Schema, RLS policies, and group-matching logic live in [`supabase/migrations/`](supabase/migrations/). RLS is enabled on all exposed tables: listing data is readable while user decisions and group votes stay private to their members. See [`docs/database-schema-research.md`](docs/database-schema-research.md) for background.
+
+## Scripts
+
+| Command | Description |
+| --- | --- |
+| `npm start` | Start the Expo dev server |
+| `npm run ios` / `android` / `web` | Launch on a target platform |
+| `npm run lint` | Lint with `expo lint` |
+| `npm run reset-project` | Reset to a blank starter (moves current code aside) |

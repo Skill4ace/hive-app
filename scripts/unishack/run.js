@@ -19,6 +19,8 @@ const DEFAULT_IMAGE_CONCURRENCY = 3;
 const DEFAULT_STORAGE_BUCKET = 'listing-media';
 const DEFAULT_OUT_ROOT = 'scrape-output';
 const USER_AGENT = 'HiveUniShackScraper/0.1 (+permitted local import)';
+const DEFAULT_ALLOWED_IMAGE_HOSTS = ['pub-7d06f3a918484c85ad3619162fd1046e.r2.dev'];
+const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 
 async function main() {
   const { command, args } = parseCliArgs(process.argv.slice(2));
@@ -629,14 +631,14 @@ async function mirrorOneImage(supabase, bucket, record, image) {
   }
 
   try {
-    const response = await fetchWithRetry(image.sourceUrl);
+    assertTrustedImageUrl(image.sourceUrl);
+    const response = await fetchWithRetry(image.sourceUrl, { redirect: 'error' });
     const contentType = response.headers.get('content-type') || 'application/octet-stream';
     if (!contentType.startsWith('image/')) {
       throw new Error(`Non-image content type: ${contentType}`);
     }
 
-    const arrayBuffer = await response.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    const buffer = await readResponseBodyWithLimit(response, MAX_IMAGE_BYTES);
     const sha256 = createHash('sha256').update(buffer).digest('hex');
     const storagePath = [
       'unishack',
@@ -645,7 +647,7 @@ async function mirrorOneImage(supabase, bucket, record, image) {
       `${String(image.displayOrder).padStart(2, '0')}-${sha256.slice(0, 16)}${imageExtension(contentType, image.sourceUrl)}`,
     ].join('/');
 
-    const upload = await supabase.storage.from(bucket).upload(storagePath, arrayBuffer, {
+    const upload = await supabase.storage.from(bucket).upload(storagePath, buffer, {
       contentType,
       upsert: true,
     });
@@ -786,6 +788,66 @@ async function fetchWithRetry(url, options = {}) {
   }
 
   throw lastError;
+}
+
+function assertTrustedImageUrl(rawUrl) {
+  let parsed;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    throw new Error('Invalid image URL');
+  }
+
+  if (parsed.protocol !== 'https:') {
+    throw new Error(`Blocked non-HTTPS image URL: ${rawUrl}`);
+  }
+
+  const allowedHosts = new Set(
+    (process.env.UNISHACK_ALLOWED_IMAGE_HOSTS || DEFAULT_ALLOWED_IMAGE_HOSTS.join(','))
+      .split(',')
+      .map((host) => host.trim().toLowerCase())
+      .filter(Boolean),
+  );
+
+  if (!allowedHosts.has(parsed.hostname.toLowerCase())) {
+    throw new Error(`Blocked untrusted image host: ${parsed.hostname}`);
+  }
+}
+
+async function readResponseBodyWithLimit(response, maxBytes) {
+  const contentLength = Number(response.headers.get('content-length'));
+  if (Number.isFinite(contentLength) && contentLength > maxBytes) {
+    throw new Error(`Image exceeds ${maxBytes} byte limit`);
+  }
+
+  if (!response.body) {
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    if (buffer.byteLength > maxBytes) {
+      throw new Error(`Image exceeds ${maxBytes} byte limit`);
+    }
+    return buffer;
+  }
+
+  const reader = response.body.getReader();
+  const chunks = [];
+  let totalBytes = 0;
+
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      totalBytes += value.byteLength;
+      if (totalBytes > maxBytes) {
+        throw new Error(`Image exceeds ${maxBytes} byte limit`);
+      }
+      chunks.push(Buffer.from(value));
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  return Buffer.concat(chunks, totalBytes);
 }
 
 async function mapWithConcurrency(items, concurrency, worker) {

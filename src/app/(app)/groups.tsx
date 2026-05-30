@@ -22,6 +22,8 @@ import { useTheme } from '@/hooks/use-theme';
 import { useHiveGroup, type GroupOutcome } from '@/lib/group-state';
 import { useHiveAppState } from '@/lib/hive-state';
 
+const INVITE_CODE_LENGTH = 6;
+
 export default function GroupsScreen() {
   const router = useRouter();
   const theme = useTheme();
@@ -299,7 +301,7 @@ export default function GroupsScreen() {
             <FormField
               label="Code"
               value={inviteCode}
-              placeholder="ABCD"
+              placeholder="ABCDEF"
               onChangeText={(value) => setInviteCode(normalizeInviteInput(value))}
               icon={hiveSymbol({ ios: 'link', android: 'link', web: 'link' })}
             />
@@ -313,7 +315,7 @@ export default function GroupsScreen() {
             <Button
               fullWidth
               variant="secondary"
-              disabled={submitting || inviteCode.trim().length !== 4}
+              disabled={submitting || inviteCode.trim().length !== INVITE_CODE_LENGTH}
               leftIcon={hiveSymbol({ ios: 'link', android: 'link', web: 'link' })}
               onPress={() => {
                 void runGroupAction(() => joinGroup(inviteCode));
@@ -359,7 +361,7 @@ function readGroupErrorCopy(error: string) {
 }
 
 function normalizeInviteInput(value: string) {
-  return value.replace(/[^a-z]/gi, '').toUpperCase().slice(0, 4);
+  return value.replace(/[^a-z]/gi, '').toUpperCase().slice(0, INVITE_CODE_LENGTH);
 }
 
 function normalizeGroupName(value: string) {
@@ -379,8 +381,8 @@ function readGroupNameError(value: string) {
 
 function readInviteCodeDisplay(value: string | null | undefined) {
   const normalized = (value ?? '').replace(/[^a-z]/gi, '').toUpperCase();
-  if (!normalized) return '....';
-  return normalized.slice(-4);
+  if (!normalized) return '......';
+  return normalized.slice(-INVITE_CODE_LENGTH);
 }
 
 function OutcomeList({
@@ -499,7 +501,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   inlineCodeBox: {
-    width: 96,
+    width: 118,
     height: 44,
     borderRadius: Radius.lg,
     flexShrink: 0,
