@@ -7,8 +7,10 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const { createClient } = require('@supabase/supabase-js');
 const {
-  UCLA_APARTMENTS_URL,
   UNISHACK_BASE_URL,
+  SUPPORTED_CAMPUS_SLUGS,
+  apartmentsUrlForCampus,
+  campusForSlug,
   hashObject,
   parseApartmentList,
   parsePropertyPage,
@@ -46,37 +48,43 @@ async function main() {
 }
 
 async function discoverCommand(args) {
-  const outDir = await prepareOutDir(args.out);
-  const html = await fetchText(UCLA_APARTMENTS_URL);
-  const apartments = parseApartmentList(html);
+  const campus = resolveCampusArg(args);
+  const apartmentsUrl = apartmentsUrlForCampus(campus.slug);
+  const outDir = await prepareOutDir(args.out, { campusSlug: campus.slug });
+  const html = await fetchText(apartmentsUrl);
+  const apartments = parseApartmentList(html, { campusSlug: campus.slug });
 
   if (args.expectCount && apartments.length !== Number(args.expectCount)) {
     throw new Error(`Expected ${args.expectCount} apartments, discovered ${apartments.length}`);
   }
 
   await writeJson(path.join(outDir, 'discovered.json'), {
-    sourceUrl: UCLA_APARTMENTS_URL,
+    sourceUrl: apartmentsUrl,
+    campus,
     discoveredAt: new Date().toISOString(),
     count: apartments.length,
     apartments,
   });
 
-  console.log(`Discovered ${apartments.length} UCLA apartment URLs`);
+  console.log(`Discovered ${apartments.length} ${campus.shortName} apartment URLs`);
   console.log(`Wrote ${path.join(outDir, 'discovered.json')}`);
 }
 
 async function scrapeCommand(args) {
-  const outDir = await prepareOutDir(args.out);
+  const campus = resolveCampusArg(args);
+  const apartmentsUrl = apartmentsUrlForCampus(campus.slug);
+  const outDir = await prepareOutDir(args.out, { campusSlug: campus.slug });
   const limit = args.limit ? Number(args.limit) : null;
   const concurrency = args.concurrency ? Number(args.concurrency) : DEFAULT_DETAIL_CONCURRENCY;
   const sourceDate = args.sourceDate || new Date().toISOString();
 
-  const html = await fetchText(UCLA_APARTMENTS_URL);
-  const discovered = parseApartmentList(html);
+  const html = await fetchText(apartmentsUrl);
+  const discovered = parseApartmentList(html, { campusSlug: campus.slug });
   const apartments = limit ? discovered.slice(0, limit) : discovered;
 
   await writeJson(path.join(outDir, 'discovered.json'), {
-    sourceUrl: UCLA_APARTMENTS_URL,
+    sourceUrl: apartmentsUrl,
+    campus,
     discoveredAt: new Date().toISOString(),
     count: discovered.length,
     selectedCount: apartments.length,
@@ -89,7 +97,7 @@ async function scrapeCommand(args) {
   await mapWithConcurrency(apartments, concurrency, async (apartment, index) => {
     try {
       const detailHtml = await fetchText(apartment.url);
-      const record = parsePropertyPage(detailHtml, apartment.url, { sourceDate });
+      const record = parsePropertyPage(detailHtml, apartment.url, { sourceDate, campusSlug: campus.slug });
       records[index] = record;
       console.log(`Parsed ${index + 1}/${apartments.length}: ${record.property.slug}`);
     } catch (error) {
@@ -105,7 +113,8 @@ async function scrapeCommand(args) {
   const normalized = records.filter(Boolean);
   const validationReport = buildValidationReport(discovered, normalized, parseErrors);
   const summary = {
-    sourceUrl: UCLA_APARTMENTS_URL,
+    sourceUrl: apartmentsUrl,
+    campus,
     outDir,
     startedAt: sourceDate,
     finishedAt: new Date().toISOString(),
@@ -120,7 +129,7 @@ async function scrapeCommand(args) {
   await writeJson(path.join(outDir, 'validation-report.json'), validationReport);
   await writeJson(path.join(outDir, 'summary.json'), summary);
 
-  console.log(`Scraped ${normalized.length}/${apartments.length} selected UCLA apartments`);
+  console.log(`Scraped ${normalized.length}/${apartments.length} selected ${campus.shortName} apartments`);
   console.log(`Wrote ${path.join(outDir, 'normalized.json')}`);
   if (parseErrors.length > 0) process.exitCode = 1;
 }
@@ -188,8 +197,10 @@ async function importCommand(args) {
 
   const supabase = getSupabaseClient();
   const dataSource = await upsertDataSource(supabase);
-  const campus = await upsertCampus(supabase, records[0]?.campus);
-  const run = await createIngestionRun(supabase, dataSource.id, inputPath, records.length);
+  const campusRecord = records[0]?.campus || campusForSlug('ucla');
+  const campusRow = await upsertCampus(supabase, campusRecord);
+  const campus = { ...campusRecord, id: campusRow.id };
+  const run = await createIngestionRun(supabase, dataSource.id, campus.slug, inputPath, records.length);
 
   const summary = {
     inputPath,
@@ -317,7 +328,7 @@ async function upsertDataSource(supabase) {
           source_type: 'permitted_scrape',
           base_url: UNISHACK_BASE_URL,
           robots_url: `${UNISHACK_BASE_URL}/robots.txt`,
-          allowed_use: 'Permissioned scrape for Hive UCLA apartment discovery',
+          allowed_use: 'Permissioned scrape for Hive apartment discovery',
           attribution_text: 'Property data from UniShack',
           rate_limit_per_minute: 60,
           active: true,
@@ -332,13 +343,7 @@ async function upsertDataSource(supabase) {
 
 async function upsertCampus(supabase, campus) {
   const row = campus || {
-    slug: 'ucla',
-    name: 'University of California, Los Angeles',
-    shortName: 'UCLA',
-    address: 'Los Angeles, CA 90095, USA',
-    latitude: 34.0689,
-    longitude: -118.4452,
-    timezone: 'America/Los_Angeles',
+    ...campusForSlug('ucla'),
   };
 
   return upsertSingle(
@@ -363,14 +368,14 @@ async function upsertCampus(supabase, campus) {
   );
 }
 
-async function createIngestionRun(supabase, sourceId, manifestPath, recordsSeen) {
+async function createIngestionRun(supabase, sourceId, campusSlug, manifestPath, recordsSeen) {
   return upsertSingle(
     supabase
       .from('ingestion_runs')
       .insert({
         source_id: sourceId,
-        campus_slug: 'ucla',
-        run_type: 'unishack_ucla_apartments',
+        campus_slug: campusSlug,
+        run_type: `unishack_${campusSlug}_apartments`,
         status: 'running',
         records_seen: recordsSeen,
         manifest_path: manifestPath,
@@ -492,7 +497,7 @@ async function upsertReviews(supabase, propertyId, reviews) {
 }
 
 async function upsertCampusMetrics(supabase, propertyId, campusId, metrics) {
-  const metric = metrics.find((row) => row.campusSlug === 'ucla');
+  const metric = metrics[0];
   if (!metric) return;
 
   await assertNoSupabaseError(
@@ -567,7 +572,7 @@ async function upsertListingSearchIndex(supabase, propertyId, record, context) {
     primaryImage?.storagePath && primaryImage?.storageBucket
       ? getPublicStorageUrl(supabase, primaryImage.storageBucket, primaryImage.storagePath)
       : primaryImage?.sourceUrl || null;
-  const campusMetric = record.campusMetrics.find((row) => row.campusSlug === 'ucla') || {};
+  const campusMetric = record.campusMetrics.find((row) => row.campusSlug === campus.slug) || {};
 
   await assertNoSupabaseError(
     supabase.from('listing_search_index').upsert(
@@ -642,7 +647,7 @@ async function mirrorOneImage(supabase, bucket, record, image) {
     const sha256 = createHash('sha256').update(buffer).digest('hex');
     const storagePath = [
       'unishack',
-      'ucla',
+      safePathSegment(record.campus?.slug || 'ucla'),
       safePathSegment(record.property.sourceId),
       `${String(image.displayOrder).padStart(2, '0')}-${sha256.slice(0, 16)}${imageExtension(contentType, image.sourceUrl)}`,
     ].join('/');
@@ -867,8 +872,9 @@ async function mapWithConcurrency(items, concurrency, worker) {
 
 async function prepareOutDir(outDir, options = {}) {
   const timestamped = options.timestamped !== false;
+  const campusSlug = options.campusSlug || 'ucla';
   const resolved = path.resolve(
-    outDir || path.join(DEFAULT_OUT_ROOT, timestamped ? `unishack-ucla-${timestampForPath()}` : ''),
+    outDir || path.join(DEFAULT_OUT_ROOT, timestamped ? `unishack-${campusSlug}-${timestampForPath()}` : ''),
   );
   await fs.mkdir(resolved, { recursive: true });
   return resolved;
@@ -878,7 +884,7 @@ async function findLatestRunFile(...fileNames) {
   const root = path.resolve(DEFAULT_OUT_ROOT);
   const entries = await fs.readdir(root, { withFileTypes: true }).catch(() => []);
   const dirs = entries
-    .filter((entry) => entry.isDirectory() && entry.name.startsWith('unishack-ucla-'))
+    .filter((entry) => entry.isDirectory() && entry.name.startsWith('unishack-'))
     .map((entry) => path.join(root, entry.name))
     .sort()
     .reverse();
@@ -918,6 +924,14 @@ function getSupabaseClient() {
   return createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+}
+
+function resolveCampusArg(args) {
+  const slug = String(args.campus || 'ucla').trim().toLowerCase();
+  if (!SUPPORTED_CAMPUS_SLUGS.includes(slug)) {
+    throw new Error(`Unsupported --campus "${args.campus}". Use one of: ${SUPPORTED_CAMPUS_SLUGS.join(', ')}`);
+  }
+  return campusForSlug(slug);
 }
 
 async function upsertSingle(query, action) {
@@ -1025,10 +1039,12 @@ function parseCliArgs(argv) {
 function printUsage() {
   console.log(`
 Usage:
-  npm run unishack:discover -- [--out scrape-output/run] [--expect-count 359]
-  npm run unishack:scrape -- [--limit 10] [--concurrency 4] [--out scrape-output/run]
+  npm run unishack:discover -- [--campus ucla] [--out scrape-output/run] [--expect-count 357]
+  npm run unishack:scrape -- [--campus ucla] [--limit 10] [--concurrency 4] [--out scrape-output/run]
   npm run unishack:mirror-images -- [--input scrape-output/run/normalized.json] [--bucket listing-media]
   npm run unishack:import -- [--input scrape-output/run/normalized.mirrored.json] [--dry-run]
+
+Supported campuses: ${SUPPORTED_CAMPUS_SLUGS.join(', ')}
 
 Environment for mirror/import:
   SUPABASE_URL

@@ -4,8 +4,64 @@ const { z } = require('zod');
 
 const UNISHACK_BASE_URL = 'https://www.unishack.com';
 const UCLA_APARTMENTS_URL = `${UNISHACK_BASE_URL}/ucla/apartments`;
-const UCLA_APARTMENT_PATH_RE = /^\/ucla\/apartment\/[^/?#]+$/;
 const PLACEHOLDER_IMAGE_RE = /\/placeholder\.svg(?:$|\?)/i;
+const CAMPUS_CONFIGS = {
+  ucla: {
+    slug: 'ucla',
+    name: 'University of California, Los Angeles',
+    shortName: 'UCLA',
+    address: 'Los Angeles, CA 90095, USA',
+    latitude: 34.0689,
+    longitude: -118.4452,
+    timezone: 'America/Los_Angeles',
+  },
+  usc: {
+    slug: 'usc',
+    name: 'University of Southern California',
+    shortName: 'USC',
+    address: 'Los Angeles, CA 90007, USA',
+    latitude: 34.0224,
+    longitude: -118.2851,
+    timezone: 'America/Los_Angeles',
+  },
+  sdsu: {
+    slug: 'sdsu',
+    name: 'San Diego State University',
+    shortName: 'SDSU',
+    address: 'San Diego, CA 92182, USA',
+    latitude: 32.7757,
+    longitude: -117.0719,
+    timezone: 'America/Los_Angeles',
+  },
+  ucsb: {
+    slug: 'ucsb',
+    name: 'University of California, Santa Barbara',
+    shortName: 'UCSB',
+    address: 'Santa Barbara, CA 93106, USA',
+    latitude: 34.414,
+    longitude: -119.8489,
+    timezone: 'America/Los_Angeles',
+  },
+  ucsd: {
+    slug: 'ucsd',
+    name: 'University of California, San Diego',
+    shortName: 'UCSD',
+    address: 'La Jolla, CA 92093, USA',
+    latitude: 32.8801,
+    longitude: -117.234,
+    timezone: 'America/Los_Angeles',
+  },
+  berkeley: {
+    slug: 'berkeley',
+    name: 'University of California, Berkeley',
+    shortName: 'Berkeley',
+    address: 'Berkeley, CA 94720, USA',
+    latitude: 37.8719,
+    longitude: -122.2585,
+    timezone: 'America/Los_Angeles',
+  },
+};
+const SUPPORTED_CAMPUS_SLUGS = Object.keys(CAMPUS_CONFIGS);
 
 const nullableNumber = z.number().finite().nullable();
 const nullableInteger = z.number().int().nullable();
@@ -64,9 +120,9 @@ const normalizedRecordSchema = z.object({
     sourceUrl: z.string().url(),
   }),
   campus: z.object({
-    slug: z.literal('ucla'),
-    name: z.literal('University of California, Los Angeles'),
-    shortName: z.literal('UCLA'),
+    slug: z.enum(SUPPORTED_CAMPUS_SLUGS),
+    name: z.string().min(1),
+    shortName: z.string().min(1),
     address: z.string(),
     latitude: z.number(),
     longitude: z.number(),
@@ -100,7 +156,7 @@ const normalizedRecordSchema = z.object({
   ),
   campusMetrics: z.array(
     z.object({
-      campusSlug: z.literal('ucla'),
+      campusSlug: z.enum(SUPPORTED_CAMPUS_SLUGS),
       distanceMeters: nullableInteger,
       distanceMiles: nullableNumber,
       walkSeconds: nullableInteger,
@@ -127,7 +183,9 @@ const normalizedRecordSchema = z.object({
   sourceSummary: z.record(z.string(), z.unknown()).default({}),
 });
 
-function parseApartmentList(html, baseUrl = UNISHACK_BASE_URL) {
+function parseApartmentList(html, options = {}) {
+  const { baseUrl, campusSlug } = normalizeParserOptions(options);
+  const apartmentPathRe = campusApartmentPathRe(campusSlug);
   const jsonLdBlocks = parseJsonLdBlocks(html);
   const itemList = jsonLdBlocks.find((block) => block && block['@type'] === 'ItemList');
 
@@ -144,7 +202,7 @@ function parseApartmentList(html, baseUrl = UNISHACK_BASE_URL) {
 
     const url = new URL(rawUrl, baseUrl);
     if (url.origin !== UNISHACK_BASE_URL) continue;
-    if (!UCLA_APARTMENT_PATH_RE.test(url.pathname)) continue;
+    if (!apartmentPathRe.test(url.pathname)) continue;
     if (seen.has(url.href)) continue;
 
     const slug = url.pathname.split('/').filter(Boolean).pop();
@@ -162,6 +220,7 @@ function parseApartmentList(html, baseUrl = UNISHACK_BASE_URL) {
 
 function parsePropertyPage(html, sourceUrl, options = {}) {
   const sourceDate = options.sourceDate ? dateOnly(options.sourceDate) : dateOnly(new Date());
+  const campusSlug = normalizeCampusSlug(options.campusSlug || campusSlugFromUrl(sourceUrl) || 'ucla');
   const flightText = decodeReactFlightText(html);
   const entityJson = extractBalancedJsonAfterKey(flightText, '"entity":');
 
@@ -178,7 +237,10 @@ function parsePropertyPage(html, sourceUrl, options = {}) {
     ? entity.images
     : parseDomImageUrls(html, entity.name);
   const images = normalizeImages(imageUrls, warnings);
-  const sourceExternalId = asText(entity.id) || slugFromUrl(sourceUrl);
+  const rawSourceExternalId = asText(entity.id) || slugFromUrl(sourceUrl);
+  const rawPropertySlug = asText(entity.slug) || slugFromUrl(sourceUrl);
+  const sourceExternalId = campusScopedValue(campusSlug, rawSourceExternalId);
+  const propertySlug = campusScopedSlug(campusSlug, rawPropertySlug);
 
   if (!entity.address) warnings.push('missing_address');
   if (finiteOrNull(entity.latitude) === null || finiteOrNull(entity.longitude) === null) {
@@ -196,11 +258,11 @@ function parsePropertyPage(html, sourceUrl, options = {}) {
       externalId: sourceExternalId,
       sourceUrl,
     },
-    campus: uclaCampus(),
+    campus: campusForSlug(campusSlug),
     property: {
       sourceId: sourceExternalId,
       sourceUrl,
-      slug: asText(entity.slug) || slugFromUrl(sourceUrl),
+      slug: propertySlug,
       name: asText(entity.name) || slugFromUrl(sourceUrl),
       propertyType: asText(entity.shack_type),
       description: normalizeText(entity.description),
@@ -215,10 +277,13 @@ function parsePropertyPage(html, sourceUrl, options = {}) {
     promotion: normalizePromotion(entity.promotion),
     faqs: faqRows,
     reviews,
-    campusMetrics: normalizeCampusMetrics(entity.shackCampuses || []),
-    pointsOfInterest: normalizePointsOfInterest(entity.shackCampuses || [], entity.shackCampusLandmarks || []),
+    campusMetrics: normalizeCampusMetrics(entity.shackCampuses || [], campusSlug),
+    pointsOfInterest: normalizePointsOfInterest(entity.shackCampuses || [], entity.shackCampusLandmarks || [], campusSlug),
     sourceSummary: {
       sourceHash: hashObject(redactedEntitySummary(entity)),
+      rawSourceExternalId,
+      rawPropertySlug,
+      campusSlug,
       listUnitCount: Array.isArray(entity.listings) ? entity.listings.length : 0,
       imageCount: Array.isArray(entity.images) ? entity.images.length : 0,
       faqCount: faqRows.length,
@@ -484,11 +549,11 @@ function normalizePromotion(promotion) {
   return { badge, description };
 }
 
-function normalizeCampusMetrics(shackCampuses) {
+function normalizeCampusMetrics(shackCampuses, campusSlug) {
   return shackCampuses
-    .filter((row) => row?.campus_slug === 'ucla')
+    .filter((row) => row?.campus_slug === campusSlug)
     .map((row) => ({
-      campusSlug: 'ucla',
+      campusSlug,
       distanceMeters: integerOrNull(row.distance_meters),
       distanceMiles: metersToMiles(row.distance_meters),
       walkSeconds: integerOrNull(row.walk_time),
@@ -498,11 +563,11 @@ function normalizeCampusMetrics(shackCampuses) {
     }));
 }
 
-function normalizePointsOfInterest(shackCampuses, directLandmarks) {
+function normalizePointsOfInterest(shackCampuses, directLandmarks, campusSlug) {
   const rows = [];
 
   for (const campus of shackCampuses) {
-    if (campus?.campus_slug !== 'ucla') continue;
+    if (campus?.campus_slug !== campusSlug) continue;
     if (Array.isArray(campus.shackCampusLandmarks)) {
       rows.push(...campus.shackCampusLandmarks);
     }
@@ -659,21 +724,68 @@ function hashObject(value) {
   return createHash('sha256').update(JSON.stringify(value)).digest('hex');
 }
 
-function uclaCampus() {
+function normalizeParserOptions(options) {
+  if (typeof options === 'string') {
+    return { baseUrl: options, campusSlug: 'ucla' };
+  }
+
   return {
-    slug: 'ucla',
-    name: 'University of California, Los Angeles',
-    shortName: 'UCLA',
-    address: 'Los Angeles, CA 90095, USA',
-    latitude: 34.0689,
-    longitude: -118.4452,
-    timezone: 'America/Los_Angeles',
+    baseUrl: options.baseUrl || UNISHACK_BASE_URL,
+    campusSlug: normalizeCampusSlug(options.campusSlug || 'ucla'),
   };
 }
 
+function normalizeCampusSlug(value) {
+  const slug = String(value || '').trim().toLowerCase();
+  if (!SUPPORTED_CAMPUS_SLUGS.includes(slug)) {
+    throw new Error(`Unsupported UniShack campus slug: ${value}`);
+  }
+  return slug;
+}
+
+function campusForSlug(slug) {
+  return { ...CAMPUS_CONFIGS[normalizeCampusSlug(slug)] };
+}
+
+function apartmentsUrlForCampus(slug) {
+  return `${UNISHACK_BASE_URL}/${normalizeCampusSlug(slug)}/apartments`;
+}
+
+function campusSlugFromUrl(sourceUrl) {
+  try {
+    const [slug] = new URL(sourceUrl, UNISHACK_BASE_URL).pathname.split('/').filter(Boolean);
+    return SUPPORTED_CAMPUS_SLUGS.includes(slug) ? slug : null;
+  } catch {
+    return null;
+  }
+}
+
+function campusApartmentPathRe(slug) {
+  return new RegExp(`^/${escapeRegExp(normalizeCampusSlug(slug))}/apartment/[^/?#]+$`);
+}
+
+function campusScopedValue(campusSlug, value) {
+  const text = asText(value) || 'unknown';
+  return campusSlug === 'ucla' ? text : `${campusSlug}:${text}`;
+}
+
+function campusScopedSlug(campusSlug, slug) {
+  const text = asText(slug) || 'unknown';
+  return campusSlug === 'ucla' ? text : `${campusSlug}-${text}`;
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 module.exports = {
+  CAMPUS_CONFIGS,
+  SUPPORTED_CAMPUS_SLUGS,
   UCLA_APARTMENTS_URL,
   UNISHACK_BASE_URL,
+  apartmentsUrlForCampus,
+  campusForSlug,
+  campusSlugFromUrl,
   normalizedRecordSchema,
   parseApartmentList,
   parsePropertyPage,

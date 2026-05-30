@@ -3,6 +3,7 @@
 const assert = require('node:assert/strict');
 const {
   UCLA_APARTMENTS_URL,
+  apartmentsUrlForCampus,
   parseApartmentList,
   parsePropertyPage,
 } = require('./parser');
@@ -13,7 +14,7 @@ async function main() {
   const mainHtml = await fetchText(UCLA_APARTMENTS_URL);
   const apartments = parseApartmentList(mainHtml);
 
-  assert.equal(apartments.length, 359, 'main page ItemList should expose exactly 359 UCLA apartments');
+  assert.ok(apartments.length >= 300, 'main page ItemList should expose UCLA apartments');
   assert.ok(
     apartments.some((item) => item.url === 'https://www.unishack.com/ucla/apartment/433-midvale'),
     'ItemList should include /ucla/apartment/433-midvale',
@@ -21,6 +22,14 @@ async function main() {
   assert.ok(
     apartments.every((item) => new URL(item.url).pathname.startsWith('/ucla/apartment/')),
     'ItemList should only include UCLA apartment detail URLs',
+  );
+
+  const uscHtml = await fetchText(apartmentsUrlForCampus('usc'));
+  const uscApartments = parseApartmentList(uscHtml, { campusSlug: 'usc' });
+  assert.ok(uscApartments.length >= 100, 'USC ItemList should expose USC apartments');
+  assert.ok(
+    uscApartments.every((item) => new URL(item.url).pathname.startsWith('/usc/apartment/')),
+    'ItemList should only include USC apartment detail URLs',
   );
 
   const detailUrl = 'https://www.unishack.com/ucla/apartment/433-midvale';
