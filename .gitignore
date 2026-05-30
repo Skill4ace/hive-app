@@ -47,4 +47,9 @@ example
 /ios
 /android
 
+# local context / editor / agent config
 spec.md
+.claude/
+.vscode/
+AGENTS.md
+CLAUDE.md

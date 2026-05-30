@@ -4,23 +4,23 @@
     "slug": "hive-official",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./hivelogoappicon.png",
+    "icon": "./assets/images/hivelogoappicon.png",
     "scheme": "hiveofficial",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./hivelogoappicon.png"
+      "icon": "./assets/images/hivelogoappicon.png"
     },
     "android": {
-      "icon": "./hivelogoappicon.png",
+      "icon": "./assets/images/hivelogoappicon.png",
       "adaptiveIcon": {
         "backgroundColor": "#3B1C44",
-        "foregroundImage": "./hivelogoappicon.png"
+        "foregroundImage": "./assets/images/hivelogoappicon.png"
       },
       "predictiveBackGestureEnabled": false
     },
     "web": {
       "output": "static",
-      "favicon": "./hivelogoappicon.png"
+      "favicon": "./assets/images/hivelogoappicon.png"
     },
     "plugins": [
       "expo-router",
@@ -28,7 +28,7 @@
         "expo-splash-screen",
         {
           "backgroundColor": "#3B1C44",
-          "image": "./HiveSplashScreen.png",
+          "image": "./assets/images/HiveSplashScreen.png",
           "imageWidth": 288,
           "resizeMode": "cover",
           "ios": {

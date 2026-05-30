@@ -16,7 +16,7 @@ export default function SignInScreen() {
       <View style={styles.brandStack}>
         <View style={[styles.logoHalo, { backgroundColor: theme.surface, shadowColor: theme.shadow }]}>
           <Image
-            source={require('../../../hivelogoappicon.png')}
+            source={require('../../../assets/images/hivelogoappicon.png')}
             style={styles.logo}
             contentFit="cover"
           />

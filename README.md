@@ -92,11 +92,9 @@ npm run unishack:import         # Import into the database
 npm run unishack:test           # Test the parser
 ```
 
-See [`docs/unishack-ucla-scraper.md`](docs/unishack-ucla-scraper.md) for details.
-
 ## Database
 
-Schema, RLS policies, and group-matching logic live in [`supabase/migrations/`](supabase/migrations/). RLS is enabled on all exposed tables: listing data is readable while user decisions and group votes stay private to their members. See [`docs/database-schema-research.md`](docs/database-schema-research.md) for background.
+Schema, RLS policies, and group-matching logic live in [`supabase/migrations/`](supabase/migrations/). RLS is enabled on all exposed tables: listing data is readable while user decisions and group votes stay private to their members.
 
 ## Scripts
 
