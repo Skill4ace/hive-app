@@ -322,31 +322,6 @@ export default function ListingDetailScreen() {
         </SurfacePanel>
       </AppSection>
 
-      <View style={[styles.requestPanel, { backgroundColor: theme.primarySoft, borderColor: theme.border }]}>
-        <View style={styles.requestCopy}>
-          <View style={styles.requestText}>
-            <ThemedText type="sectionTitle">
-              {requestSubmitted ? 'Request sent' : group ? 'Request as a group' : 'Request info'}
-            </ThemedText>
-            <ThemedText type="caption" themeColor="textSecondary">
-              {requestSubmitted
-                ? 'Saved in Hive for follow-up.'
-                : 'Ask about availability, tours, and next steps.'}
-            </ThemedText>
-          </View>
-        </View>
-        <Button
-          variant={requestSubmitted ? 'secondary' : 'primary'}
-          leftIcon={hiveSymbol({
-            ios: requestSubmitted ? 'checkmark.circle.fill' : 'paperplane.fill',
-            android: requestSubmitted ? 'check_circle' : 'send',
-            web: requestSubmitted ? 'check_circle' : 'send',
-          })}
-          onPress={openRequestSheet}>
-          {requestSubmitted ? 'Edit request' : 'Start request'}
-        </Button>
-      </View>
-
       <AppSection title="Campus map">
         <View style={[styles.mapPanel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           {mapRegion && listing.coordinates ? (
@@ -373,21 +348,6 @@ export default function ListingDetailScreen() {
         </View>
       </AppSection>
 
-      <AppSection title="Notes">
-        <SurfacePanel>
-          <View style={styles.notesList}>
-            {amenities.map((amenity, index) => (
-              <View key={`${amenity}-${index}`} style={[styles.noteRow, { borderColor: theme.border }]}>
-                <View style={[styles.noteDot, { backgroundColor: theme.primary }]} />
-                <ThemedText type="caption" themeColor="textSecondary" style={styles.noteText}>
-                  {amenity}
-                </ThemedText>
-              </View>
-            ))}
-          </View>
-        </SurfacePanel>
-      </AppSection>
-
       <AppSection title="Monthly costs">
         <SurfacePanel>
           <SettingRow
@@ -408,6 +368,21 @@ export default function ListingDetailScreen() {
             subtitle="Shortest available term"
             value={primaryUnit?.lease_term_months ? `${primaryUnit.lease_term_months} mo` : 'Ask'}
           />
+        </SurfacePanel>
+      </AppSection>
+
+      <AppSection title="Notes">
+        <SurfacePanel>
+          <View style={styles.notesList}>
+            {amenities.map((amenity, index) => (
+              <View key={`${amenity}-${index}`} style={[styles.noteRow, { borderColor: theme.border }]}>
+                <View style={[styles.noteDot, { backgroundColor: theme.primary }]} />
+                <ThemedText type="caption" themeColor="textSecondary" style={styles.noteText}>
+                  {amenity}
+                </ThemedText>
+              </View>
+            ))}
+          </View>
         </SurfacePanel>
       </AppSection>
 
@@ -450,6 +425,31 @@ export default function ListingDetailScreen() {
           </SurfacePanel>
         </AppSection>
       ) : null}
+
+      <View style={[styles.requestPanel, { backgroundColor: theme.primarySoft, borderColor: theme.border }]}>
+        <View style={styles.requestCopy}>
+          <View style={styles.requestText}>
+            <ThemedText type="sectionTitle">
+              {requestSubmitted ? 'Request sent' : group ? 'Request as a group' : 'Request info'}
+            </ThemedText>
+            <ThemedText type="caption" themeColor="textSecondary">
+              {requestSubmitted
+                ? 'Saved in Hive for follow-up.'
+                : 'Ask about availability, tours, and next steps.'}
+            </ThemedText>
+          </View>
+        </View>
+        <Button
+          variant={requestSubmitted ? 'secondary' : 'primary'}
+          leftIcon={hiveSymbol({
+            ios: requestSubmitted ? 'checkmark.circle.fill' : 'paperplane.fill',
+            android: requestSubmitted ? 'check_circle' : 'send',
+            web: requestSubmitted ? 'check_circle' : 'send',
+          })}
+          onPress={openRequestSheet}>
+          {requestSubmitted ? 'Edit request' : 'Start request'}
+        </Button>
+      </View>
 
       <View style={styles.actions}>
         <Button variant="ghost" fullWidth onPress={passListing}>
