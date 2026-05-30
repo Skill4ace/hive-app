@@ -54,6 +54,7 @@ type HiveAppStateContextValue = PersistedHiveState & {
   clearDecision: (listingId: string) => void;
   undoDecision: () => void;
   resetDecisions: () => void;
+  clearAllLocalData: () => Promise<void>;
 };
 
 const STORAGE_KEY = 'hive.local-state.v1';
@@ -188,6 +189,17 @@ export function HiveAppStateProvider({ children }: { children: ReactNode }) {
     setHistory([]);
   }, []);
 
+  const clearAllLocalData = useCallback(async () => {
+    setPreferences(defaultSearchPreferences);
+    setDecisions({});
+    setHistory([]);
+    try {
+      await Storage.removeItem(STORAGE_KEY);
+    } catch (error) {
+      console.warn('Unable to clear Hive local state', error);
+    }
+  }, []);
+
   const value = useMemo<HiveAppStateContextValue>(() => {
     const entries = Object.entries(decisions);
 
@@ -203,8 +215,10 @@ export function HiveAppStateProvider({ children }: { children: ReactNode }) {
       clearDecision,
       undoDecision,
       resetDecisions,
+      clearAllLocalData,
     };
   }, [
+    clearAllLocalData,
     clearDecision,
     decisions,
     history,

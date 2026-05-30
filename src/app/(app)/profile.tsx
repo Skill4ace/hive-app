@@ -11,8 +11,35 @@ import { useHiveAppState } from '@/lib/hive-state';
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { preferences, likedIds, passedIds, clearDecision } = useHiveAppState();
-  const { group, members, deleteSyncedDecision } = useHiveGroup();
+  const { preferences, likedIds, passedIds, clearDecision, clearAllLocalData } = useHiveAppState();
+  const { group, members, deleteSyncedDecision, deleteAccount } = useHiveGroup();
+  const confirmDeleteAccount = () => {
+    Alert.alert(
+      'Delete account?',
+      'This permanently deletes your Hive profile, saved matches, votes, and any group you own. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            void (async () => {
+              try {
+                await deleteAccount();
+                await clearAllLocalData();
+                router.replace('/sign-in');
+              } catch (error) {
+                Alert.alert(
+                  'Could not delete account',
+                  error instanceof Error ? error.message : 'Please try again.',
+                );
+              }
+            })();
+          },
+        },
+      ],
+    );
+  };
   const clearMatches = () => {
     if (likedIds.length === 0) return;
 
@@ -147,7 +174,8 @@ export default function ProfileScreen() {
         <Button
           fullWidth
           variant="danger"
-          leftIcon={hiveSymbol({ ios: 'trash.fill', android: 'delete', web: 'delete' })}>
+          leftIcon={hiveSymbol({ ios: 'trash.fill', android: 'delete', web: 'delete' })}
+          onPress={confirmDeleteAccount}>
           Delete account
         </Button>
       </View>

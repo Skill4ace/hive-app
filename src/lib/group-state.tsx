@@ -90,6 +90,7 @@ type HiveGroupContextValue = {
   removeMember: (memberUserId: string) => Promise<void>;
   refresh: () => Promise<void>;
   deleteSyncedDecision: (listingId: string) => Promise<void>;
+  deleteAccount: () => Promise<void>;
 };
 
 const HiveGroupContext = createContext<HiveGroupContextValue | null>(null);
@@ -502,6 +503,36 @@ export function HiveGroupProvider({ children }: { children: ReactNode }) {
     [activeGroupId, authUserId, loadGroup],
   );
 
+  const deleteAccount = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      await ensureSession();
+
+      const supabase = getSupabaseClient();
+      const { error: deleteError } = await supabase.rpc('delete_account');
+      if (deleteError) {
+        throw new Error(`Unable to delete account: ${deleteError.message}`);
+      }
+
+      // Drop the now-orphaned anonymous session and reset in-memory group state.
+      await supabase.auth.signOut();
+
+      setGroup(null);
+      setMembers([]);
+      setVotes([]);
+      setAuthUserId(null);
+      setAuthReady(false);
+      lastSyncedKey.current = '';
+    } catch (nextError) {
+      setError(readErrorMessage(nextError));
+      throw nextError;
+    } finally {
+      setLoading(false);
+    }
+  }, [ensureSession]);
+
   const outcomes = useMemo(() => buildGroupOutcomes(members, votes), [members, votes]);
   const matchedOutcomes = useMemo(() => outcomes.filter((outcome) => outcome.status === 'matched'), [outcomes]);
   const partialOutcomes = useMemo(() => outcomes.filter((outcome) => outcome.status === 'partial'), [outcomes]);
@@ -551,11 +582,13 @@ export function HiveGroupProvider({ children }: { children: ReactNode }) {
       removeMember,
       refresh,
       deleteSyncedDecision,
+      deleteAccount,
     }),
     [
       authReady,
       authUserId,
       createGroup,
+      deleteAccount,
       deleteSyncedDecision,
       error,
       group,

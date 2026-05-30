@@ -719,6 +719,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     fontFamily: Fonts.display,
     fontSize: 24,
+    // The display font needs explicit leading at this size or its tall caps
+    // clip at the top of the input (matches campusLockedValue's lineHeight).
+    lineHeight: 31,
     fontWeight: '700',
   },
   campusLocked: {
