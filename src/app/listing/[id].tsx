@@ -1,19 +1,23 @@
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { NativeScrollEvent, NativeSyntheticEvent, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { NativeScrollEvent, NativeSyntheticEvent, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import MapView, { Marker, type Region } from 'react-native-maps';
 
 import { AppSection, SettingRow, SurfacePanel } from '@/components/hive/app-shell';
-import { Button, EmptyState, IconButton, Pill, PreferenceChip, Screen, Skeleton, hiveSymbol } from '@/components/hive/primitives';
+import { BottomSheet, Button, EmptyState, FormField, IconButton, Pill, PreferenceChip, Screen, Skeleton, hiveSymbol } from '@/components/hive/primitives';
 import { ListingMetaRow, MatchBadge, PriceLabel } from '@/components/hive/listing';
 import { ThemedText } from '@/components/themed-text';
 import { Radius, Shadows, Spacing } from '@/constants/theme';
+import { submitListingLeadRequest } from '@/data/lead-requests';
 import { formatMoney, formatMoveIn } from '@/data/real-listings';
 import { useRealListingDetail } from '@/hooks/use-real-listings';
 import { useTheme } from '@/hooks/use-theme';
 import { useHiveGroup } from '@/lib/group-state';
 import { useHiveAppState } from '@/lib/hive-state';
+
+const defaultLeadMessage =
+  "Hi, I'm interested in this listing. Can you share current availability, tour options, and next steps?";
 
 export default function ListingDetailScreen() {
   const router = useRouter();
@@ -21,10 +25,18 @@ export default function ListingDetailScreen() {
   const listingId = Array.isArray(id) ? id[0] : id;
   const theme = useTheme();
   const { width } = useWindowDimensions();
-  const { decisions, recordDecision, clearDecision } = useHiveAppState();
+  const { decisions, preferences, recordDecision, clearDecision } = useHiveAppState();
   const { group, members, outcomesByListing, deleteSyncedDecision } = useHiveGroup();
   const { data: detail, loading, error, refresh } = useRealListingDetail(listingId);
   const [photoIndex, setPhotoIndex] = useState(0);
+  const [requestVisible, setRequestVisible] = useState(false);
+  const [requestSubmitted, setRequestSubmitted] = useState(false);
+  const [requestSubmitting, setRequestSubmitting] = useState(false);
+  const [requestName, setRequestName] = useState(preferences.username);
+  const [requestEmail, setRequestEmail] = useState('');
+  const [requestMessage, setRequestMessage] = useState(defaultLeadMessage);
+  const [partnerConsent, setPartnerConsent] = useState(false);
+  const [requestError, setRequestError] = useState<string | null>(null);
   const listing = detail?.listing;
   const gallery = listing ? (detail.photos.length > 0 ? detail.photos : [listing.image]).filter(Boolean) : [];
   const contentWidth = Math.min(width - Spacing.three * 2, 620);
@@ -94,6 +106,55 @@ export default function ListingDetailScreen() {
   const passListing = () => {
     recordDecision(listing.id, 'passed', listing.match);
     router.back();
+  };
+
+  const submitRequest = async () => {
+    const normalizedEmail = requestEmail.trim();
+    const normalizedMessage = requestMessage.trim();
+
+    if (!normalizedEmail || !normalizedEmail.includes('@')) {
+      setRequestError('Enter an email so the housing partner can follow up.');
+      return;
+    }
+
+    if (!normalizedMessage) {
+      setRequestMessage(defaultLeadMessage);
+    }
+
+    if (!partnerConsent) {
+      setRequestError('Confirm that Hive can share this request with the housing partner.');
+      return;
+    }
+
+    setRequestSubmitting(true);
+    setRequestError(null);
+
+    try {
+      await submitListingLeadRequest({
+        listing,
+        detail,
+        preferences,
+        group,
+        contactName: requestName,
+        contactEmail: normalizedEmail,
+        message: normalizedMessage || defaultLeadMessage,
+      });
+
+      setRequestSubmitted(true);
+      setRequestVisible(false);
+    } catch (nextError) {
+      setRequestError(readErrorMessage(nextError));
+    } finally {
+      setRequestSubmitting(false);
+    }
+  };
+
+  const openRequestSheet = () => {
+    if (!requestMessage.trim()) {
+      setRequestMessage(defaultLeadMessage);
+    }
+
+    setRequestVisible(true);
   };
 
   return (
@@ -231,6 +292,31 @@ export default function ListingDetailScreen() {
         </SurfacePanel>
       </AppSection>
 
+      <View style={[styles.requestPanel, { backgroundColor: theme.primarySoft, borderColor: theme.border }]}>
+        <View style={styles.requestCopy}>
+          <View style={styles.requestText}>
+            <ThemedText type="sectionTitle">
+              {requestSubmitted ? 'Request sent' : group ? 'Request as a group' : 'Request info'}
+            </ThemedText>
+            <ThemedText type="caption" themeColor="textSecondary">
+              {requestSubmitted
+                ? 'Saved in Hive for follow-up.'
+                : 'Ask about availability, tours, and next steps.'}
+            </ThemedText>
+          </View>
+        </View>
+        <Button
+          variant={requestSubmitted ? 'secondary' : 'primary'}
+          leftIcon={hiveSymbol({
+            ios: requestSubmitted ? 'checkmark.circle.fill' : 'paperplane.fill',
+            android: requestSubmitted ? 'check_circle' : 'send',
+            web: requestSubmitted ? 'check_circle' : 'send',
+          })}
+          onPress={openRequestSheet}>
+          {requestSubmitted ? 'Edit request' : 'Start request'}
+        </Button>
+      </View>
+
       <AppSection title="Available units">
         <SurfacePanel>
           {(availableUnits.length > 0 ? availableUnits : detail.units).slice(0, 5).map((unit) => (
@@ -361,8 +447,96 @@ export default function ListingDetailScreen() {
           {isSaved ? 'Saved' : 'Add to saved'}
         </Button>
       </View>
+
+      <BottomSheet
+        visible={requestVisible}
+        title={group ? 'Request as a group' : 'Request info'}
+        onClose={() => setRequestVisible(false)}
+        footer={
+          <Button
+            fullWidth
+            disabled={requestSubmitting}
+            leftIcon={hiveSymbol({ ios: 'paperplane.fill', android: 'send', web: 'send' })}
+            onPress={submitRequest}>
+            {requestSubmitting ? 'Sending...' : requestSubmitted ? 'Send update' : 'Send request'}
+          </Button>
+        }>
+        <View style={styles.requestSheetIntro}>
+          <ThemedText type="smallBold">{listing.title}</ThemedText>
+          <ThemedText type="caption" themeColor="textSecondary">
+            {listing.address ? `${listing.address} · ${listing.location}` : listing.location}
+          </ThemedText>
+        </View>
+        <FormField
+          label="Name"
+          value={requestName}
+          onChangeText={setRequestName}
+          placeholder="Your name"
+          icon={hiveSymbol({ ios: 'person.fill', android: 'person', web: 'person' })}
+        />
+        <FormField
+          label="Email"
+          value={requestEmail}
+          onChangeText={(value) => {
+            setRequestEmail(value);
+            setRequestError(null);
+          }}
+          placeholder="name@email.com"
+          icon={hiveSymbol({ ios: 'envelope.fill', android: 'mail', web: 'mail' })}
+        />
+        <FormField
+          label="Message"
+          value={requestMessage}
+          onChangeText={setRequestMessage}
+          placeholder="Ask about availability, tours, or next steps."
+          multiline
+          icon={hiveSymbol({ ios: 'text.bubble.fill', android: 'chat_bubble', web: 'chat_bubble' })}
+        />
+        <Pressable
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: partnerConsent }}
+          onPress={() => {
+            setPartnerConsent((current) => !current);
+            setRequestError(null);
+          }}
+          style={({ pressed }) => [
+            styles.consentRow,
+            {
+              borderColor: partnerConsent ? theme.primary : theme.border,
+              backgroundColor: partnerConsent ? theme.primarySoft : theme.surface,
+              opacity: pressed ? 0.78 : 1,
+            },
+          ]}>
+          <View
+            style={[
+              styles.checkbox,
+              {
+                borderColor: partnerConsent ? theme.primary : theme.borderStrong,
+                backgroundColor: partnerConsent ? theme.primary : 'transparent',
+              },
+            ]}>
+            {partnerConsent ? (
+              <ThemedText type="caption" style={{ color: theme.primaryText }}>
+                ✓
+              </ThemedText>
+            ) : null}
+          </View>
+          <ThemedText type="caption" themeColor="textSecondary" style={styles.consentCopy}>
+            Share my name, email, preferences, and request details with the housing partner so they can respond.
+          </ThemedText>
+        </Pressable>
+        {requestError ? (
+          <ThemedText type="caption" style={{ color: theme.danger }}>
+            {requestError}
+          </ThemedText>
+        ) : null}
+      </BottomSheet>
     </Screen>
   );
+}
+
+function readErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : 'Something went wrong while sending this request.';
 }
 
 function readGroupOutcomeLabel(
@@ -449,6 +623,21 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     gap: Spacing.one,
   },
+  requestPanel: {
+    borderWidth: 1,
+    borderRadius: Radius.xxl,
+    padding: Spacing.three,
+    gap: Spacing.three,
+  },
+  requestCopy: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.three,
+  },
+  requestText: {
+    flex: 1,
+    gap: Spacing.half,
+  },
   factGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -498,5 +687,28 @@ const styles = StyleSheet.create({
   actions: {
     flexDirection: 'row',
     gap: Spacing.two,
+  },
+  requestSheetIntro: {
+    gap: Spacing.half,
+  },
+  consentRow: {
+    minHeight: 72,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    padding: Spacing.three,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  consentCopy: {
+    flex: 1,
   },
 });

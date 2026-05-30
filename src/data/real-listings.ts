@@ -46,6 +46,7 @@ export type ListingSearchRow = {
 
 type PropertyRow = {
   id: string;
+  campus_id: string | null;
   name: string;
   slug: string;
   property_type: string | null;
@@ -193,7 +194,7 @@ export async function fetchListingDetail(id: string, preferences: SearchPreferen
     .maybeSingle();
   const propertyPromise = supabase
     .from('properties')
-    .select('id,name,slug,property_type,description,address,manager_display_name,source_url')
+    .select('id,campus_id,name,slug,property_type,description,address,manager_display_name,source_url')
     .eq('id', id)
     .single();
   const photosPromise = supabase
@@ -548,7 +549,7 @@ function buildFallbackSearchRow(property: PropertyRow, units: UnitRow[], primary
 
   return {
     property_id: property.id,
-    campus_id: '',
+    campus_id: property.campus_id ?? '',
     source_id: '',
     source_url: property.source_url,
     title: property.name,
