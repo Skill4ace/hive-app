@@ -106,6 +106,8 @@ export function HiveGroupProvider({ children }: { children: ReactNode }) {
   const [members, setMembers] = useState<GroupMember[]>([]);
   const [votes, setVotes] = useState<GroupVote[]>([]);
   const lastSyncedKey = useRef<string>('');
+  const lastSyncedDecisions = useRef<Record<string, ListingDecisionRecord> | null>(null);
+  const lastSyncedGroupId = useRef<string | null>(null);
   const activeGroupId = group?.id ?? null;
   const preferencesKey = useMemo(() => JSON.stringify(preferences), [preferences]);
   const decisionsKey = useMemo(() => JSON.stringify(decisions), [decisions]);
@@ -219,36 +221,81 @@ export function HiveGroupProvider({ children }: { children: ReactNode }) {
 
   const syncDecisions = useCallback(
     async (nextDecisions: Record<string, ListingDecisionRecord>, activeGroupId: string | null) => {
-      if (!authUserId) return;
+      if (!authUserId) return false;
 
       const entries = Object.entries(nextDecisions);
+      const previousDecisions = lastSyncedDecisions.current;
+      const shouldBackfillUserDecisions = previousDecisions === null;
+      const shouldBackfillGroupVotes = Boolean(activeGroupId) && lastSyncedGroupId.current !== activeGroupId;
       const supabase = getSupabaseClient();
 
       await upsertProfile(authUserId, preferences);
 
-      if (entries.length === 0) {
-        return;
+      const changedUserEntries = entries.filter(([propertyId, record]) => {
+        return shouldBackfillUserDecisions || !areDecisionRecordsEqual(record, previousDecisions?.[propertyId]);
+      });
+      const changedVoteEntries = activeGroupId
+        ? entries.filter(([propertyId, record]) => {
+            return (
+              shouldBackfillUserDecisions ||
+              shouldBackfillGroupVotes ||
+              !areDecisionRecordsEqual(record, previousDecisions?.[propertyId])
+            );
+          })
+        : [];
+      const removedPropertyIds =
+        previousDecisions && !shouldBackfillUserDecisions
+          ? Object.keys(previousDecisions).filter((propertyId) => !nextDecisions[propertyId])
+          : [];
+
+      if (removedPropertyIds.length > 0) {
+        const { error: deleteDecisionError } = await supabase
+          .from('user_listing_decisions')
+          .delete()
+          .eq('user_id', authUserId)
+          .in('property_id', removedPropertyIds);
+
+        if (deleteDecisionError) {
+          throw new Error(`Unable to remove listing decisions: ${deleteDecisionError.message}`);
+        }
+
+        if (activeGroupId) {
+          const { error: deleteVoteError } = await supabase
+            .from('group_listing_votes')
+            .delete()
+            .eq('group_id', activeGroupId)
+            .eq('user_id', authUserId)
+            .in('property_id', removedPropertyIds);
+
+          if (deleteVoteError) {
+            throw new Error(`Unable to remove group votes: ${deleteVoteError.message}`);
+          }
+        }
       }
 
-      const decisionRows = entries.map(([propertyId, record]) => ({
-        user_id: authUserId,
-        property_id: propertyId,
-        decision: record.decision,
-        score: record.score ?? null,
-        decided_at: record.decidedAt,
-      }));
+      if (changedUserEntries.length > 0) {
+        const decisionRows = changedUserEntries.map(([propertyId, record]) => ({
+          user_id: authUserId,
+          property_id: propertyId,
+          decision: record.decision,
+          score: record.score ?? null,
+          decided_at: record.decidedAt,
+        }));
 
-      const { error: decisionError } = await supabase
-        .from('user_listing_decisions')
-        .upsert(decisionRows, { onConflict: 'user_id,property_id' });
+        const { error: decisionError } = await supabase
+          .from('user_listing_decisions')
+          .upsert(decisionRows, { onConflict: 'user_id,property_id' });
 
-      if (decisionError) {
-        throw new Error(`Unable to sync listing decisions: ${decisionError.message}`);
+        if (decisionError) {
+          throw new Error(`Unable to sync listing decisions: ${decisionError.message}`);
+        }
       }
 
-      if (!activeGroupId) return;
+      if (!activeGroupId) return true;
 
-      const voteRows = entries.map(([propertyId, record]) => ({
+      if (changedVoteEntries.length === 0) return true;
+
+      const voteRows = changedVoteEntries.map(([propertyId, record]) => ({
         group_id: activeGroupId,
         user_id: authUserId,
         property_id: propertyId,
@@ -264,6 +311,8 @@ export function HiveGroupProvider({ children }: { children: ReactNode }) {
       if (voteError) {
         throw new Error(`Unable to sync group votes: ${voteError.message}`);
       }
+
+      return true;
     },
     [authUserId, preferences, upsertProfile],
   );
@@ -273,13 +322,18 @@ export function HiveGroupProvider({ children }: { children: ReactNode }) {
 
     const syncKey = `${authUserId}|${group?.id ?? 'solo'}|${preferencesKey}|${decisionsKey}`;
     if (lastSyncedKey.current === syncKey) return;
-    lastSyncedKey.current = syncKey;
 
     let mounted = true;
     setSyncing(true);
 
     syncDecisions(decisions, group?.id ?? null)
-      .then(() => {
+      .then((didSync) => {
+        if (mounted && didSync) {
+          lastSyncedKey.current = syncKey;
+          lastSyncedDecisions.current = cloneDecisionSnapshot(decisions);
+          lastSyncedGroupId.current = group?.id ?? null;
+        }
+
         if (mounted && group?.id) {
           return loadGroup();
         }
@@ -429,6 +483,7 @@ export function HiveGroupProvider({ children }: { children: ReactNode }) {
       setMembers([]);
       setVotes([]);
       lastSyncedKey.current = '';
+      lastSyncedGroupId.current = null;
     } catch (nextError) {
       setError(readErrorMessage(nextError));
       throw nextError;
@@ -499,6 +554,7 @@ export function HiveGroupProvider({ children }: { children: ReactNode }) {
       }
 
       lastSyncedKey.current = '';
+      lastSyncedDecisions.current = omitDecision(lastSyncedDecisions.current, listingId);
     },
     [activeGroupId, authUserId, loadGroup],
   );
@@ -525,6 +581,8 @@ export function HiveGroupProvider({ children }: { children: ReactNode }) {
       setAuthUserId(null);
       setAuthReady(false);
       lastSyncedKey.current = '';
+      lastSyncedDecisions.current = null;
+      lastSyncedGroupId.current = null;
     } catch (nextError) {
       setError(readErrorMessage(nextError));
       throw nextError;
@@ -666,6 +724,33 @@ function buildGroupOutcomes(members: GroupMember[], votes: GroupVote[]): GroupOu
       if (a.status !== b.status) return a.status === 'matched' ? -1 : 1;
       return b.lastActivityAt.localeCompare(a.lastActivityAt);
     });
+}
+
+function areDecisionRecordsEqual(left: ListingDecisionRecord | undefined, right: ListingDecisionRecord | undefined) {
+  if (!left || !right) return false;
+
+  return (
+    left.decision === right.decision &&
+    left.decidedAt === right.decidedAt &&
+    (left.score ?? null) === (right.score ?? null)
+  );
+}
+
+function cloneDecisionSnapshot(decisions: Record<string, ListingDecisionRecord>) {
+  return Object.fromEntries(
+    Object.entries(decisions).map(([propertyId, record]) => [propertyId, { ...record }]),
+  );
+}
+
+function omitDecision(
+  decisions: Record<string, ListingDecisionRecord> | null,
+  listingId: string,
+): Record<string, ListingDecisionRecord> | null {
+  if (!decisions || !decisions[listingId]) return decisions;
+
+  const next = { ...decisions };
+  delete next[listingId];
+  return next;
 }
 
 function parseGroupPayload(value: unknown): RpcGroupPayload | null {

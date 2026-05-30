@@ -34,13 +34,20 @@ export default function PrivacyScreen() {
           <SettingRow
             icon={hiveSymbol({ ios: 'hand.raised.fill', android: 'pan_tool', web: 'pan_tool' })}
             title="Listing decisions"
-            subtitle="Likes and passes are private until a group match"
+            subtitle="Likes and passes stay private unless they create a group match"
             value="Private"
           />
           <SettingRow
-            icon={hiveSymbol({ ios: 'square.and.arrow.down.fill', android: 'download', web: 'download' })}
-            title="Data export"
-            subtitle="Planned before App Store submission"
+            icon={hiveSymbol({ ios: 'envelope.fill', android: 'mail', web: 'mail' })}
+            title="Housing partner requests"
+            subtitle="Name, email, and message are shared only when you submit a request"
+            value="Opt-in"
+          />
+          <SettingRow
+            icon={hiveSymbol({ ios: 'trash.fill', android: 'delete', web: 'delete' })}
+            title="Account deletion"
+            subtitle="Deletes your profile, saved decisions, group votes, and owned groups"
+            value="Available"
           />
         </SurfacePanel>
       </AppSection>

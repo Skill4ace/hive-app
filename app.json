@@ -1,16 +1,35 @@
 {
   "expo": {
-    "name": "hive-official",
+    "name": "Hive",
     "slug": "hive-official",
+    "description": "Collaborative apartment hunting for college students near campus.",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/hivelogoappicon.png",
     "scheme": "hiveofficial",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/images/hivelogoappicon.png"
+      "bundleIdentifier": "com.skill4ace.hiveofficial",
+      "buildNumber": "1",
+      "supportsTablet": false,
+      "icon": "./assets/images/hivelogoappicon.png",
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": false,
+          "NSExceptionDomains": {
+            "localhost": {
+              "NSExceptionAllowsInsecureHTTPLoads": true
+            }
+          }
+        }
+      },
+      "config": {
+        "usesNonExemptEncryption": false
+      }
     },
     "android": {
+      "package": "com.skill4ace.hiveofficial",
+      "versionCode": 1,
       "icon": "./assets/images/hivelogoappicon.png",
       "adaptiveIcon": {
         "backgroundColor": "#3B1C44",
