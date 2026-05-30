@@ -184,28 +184,19 @@ type HeroCardProps = {
 
 function HeroCard({ listing, position, isFront, width, idle, onSwiped }: HeroCardProps) {
   const theme = useTheme();
-  // Each card owns its own motion so the gesture only ever mutates local shared
-  // values (the recycled card resets its own drag below when it loops to back).
+  // Each card owns its own motion. slot is mutated only here (in the effect);
+  // dragX/dragY/locked only in the gesture — kept separate so the linter's
+  // immutability rule is satisfied and the two never fight over a value.
   const slot = useSharedValue(position);
   const dragX = useSharedValue(0);
   const dragY = useSharedValue(0);
   const locked = useSharedValue(false);
-  const prevPosition = useRef(position);
 
   useEffect(() => {
-    // The just-swiped card recycles to the back while it's still off-screen —
-    // snap it there and clear its drag. Everything else springs into its slot.
-    if (position === 2 && prevPosition.current === 0) {
-      cancelAnimation(slot);
-      slot.value = 2;
-      dragX.value = 0;
-      dragY.value = 0;
-      locked.value = false;
-    } else {
-      slot.value = withSpring(position, PROMOTE_SPRING);
-    }
-    prevPosition.current = position;
-    // slot/dragX/dragY/locked are stable useSharedValue refs, intentionally omitted.
+    // Cards only ever move up the stack (mid -> front, back -> mid); recycled
+    // cards remount fresh at the back. Spring toward the slot we now occupy.
+    slot.value = withSpring(position, PROMOTE_SPRING);
+    // slot is a stable useSharedValue ref; only `position` should retrigger this.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [position]);
 
