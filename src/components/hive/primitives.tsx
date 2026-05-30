@@ -22,9 +22,10 @@ type ScreenProps = {
   scroll?: boolean;
   padded?: boolean;
   contentStyle?: ViewStyle;
+  footer?: ReactNode;
 };
 
-export function Screen({ children, scroll = true, padded = true, contentStyle }: ScreenProps) {
+export function Screen({ children, scroll = true, padded = true, contentStyle, footer }: ScreenProps) {
   const theme = useTheme();
   const content = [
     styles.screenContent,
@@ -33,7 +34,7 @@ export function Screen({ children, scroll = true, padded = true, contentStyle }:
   ];
 
   return (
-    <SafeAreaView style={[styles.screen, { backgroundColor: theme.background }]}>
+    <SafeAreaView style={[styles.screen, { backgroundColor: theme.background }]} edges={footer ? ['top', 'left', 'right'] : undefined}>
       {scroll ? (
         <ScrollView
           showsVerticalScrollIndicator={false}
@@ -43,6 +44,11 @@ export function Screen({ children, scroll = true, padded = true, contentStyle }:
       ) : (
         <View style={content}>{children}</View>
       )}
+      {footer ? (
+        <SafeAreaView edges={['bottom']} style={[styles.screenFooter, { backgroundColor: theme.surface, borderTopColor: theme.border, shadowColor: theme.shadow }]}>
+          {footer}
+        </SafeAreaView>
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -678,6 +684,12 @@ const styles = StyleSheet.create({
   screenPadded: {
     paddingHorizontal: Spacing.three,
     paddingTop: Spacing.two,
+  },
+  screenFooter: {
+    paddingHorizontal: Spacing.three,
+    paddingTop: Spacing.three,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    ...Shadows.card,
   },
   logoRow: {
     flexDirection: 'row',

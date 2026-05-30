@@ -6,7 +6,7 @@ import MapView, { Marker, type Region } from 'react-native-maps';
 
 import { AppSection, SettingRow, SurfacePanel } from '@/components/hive/app-shell';
 import { BottomSheet, Button, EmptyState, FormField, IconButton, IconGlyph, Pill, Screen, Skeleton, hiveSymbol } from '@/components/hive/primitives';
-import { ListingMetaRow, PriceLabel } from '@/components/hive/listing';
+import { ListingMetaRow, PriceLabel, SwipeActionButton } from '@/components/hive/listing';
 import { ThemedText } from '@/components/themed-text';
 import { Radius, Shadows, Spacing } from '@/constants/theme';
 import { submitListingLeadRequest } from '@/data/lead-requests';
@@ -160,7 +160,27 @@ export default function ListingDetailScreen() {
   };
 
   return (
-    <Screen contentStyle={styles.screen}>
+    <Screen
+      contentStyle={styles.screen}
+      footer={
+        <View style={styles.stickyBar}>
+          <SwipeActionButton action="pass" size="md" onPress={passListing} />
+          <SwipeActionButton action="like" size="md" onPress={saveListing} />
+          <View style={styles.stickyRequest}>
+            <Button
+              fullWidth
+              variant={requestSubmitted ? 'secondary' : 'primary'}
+              leftIcon={hiveSymbol({
+                ios: requestSubmitted ? 'checkmark.circle.fill' : 'paperplane.fill',
+                android: requestSubmitted ? 'check_circle' : 'send',
+                web: requestSubmitted ? 'check_circle' : 'send',
+              })}
+              onPress={openRequestSheet}>
+              {requestSubmitted ? 'Request sent' : 'Request info'}
+            </Button>
+          </View>
+        </View>
+      }>
       <View style={[styles.galleryShell, { width: contentWidth, backgroundColor: theme.surface, shadowColor: theme.shadow }]}>
         <ScrollView
           ref={galleryRef}
@@ -426,40 +446,6 @@ export default function ListingDetailScreen() {
         </AppSection>
       ) : null}
 
-      <View style={[styles.requestPanel, { backgroundColor: theme.primarySoft, borderColor: theme.border }]}>
-        <View style={styles.requestCopy}>
-          <View style={styles.requestText}>
-            <ThemedText type="sectionTitle">
-              {requestSubmitted ? 'Request sent' : group ? 'Request as a group' : 'Request info'}
-            </ThemedText>
-            <ThemedText type="caption" themeColor="textSecondary">
-              {requestSubmitted
-                ? 'Saved in Hive for follow-up.'
-                : 'Ask about availability, tours, and next steps.'}
-            </ThemedText>
-          </View>
-        </View>
-        <Button
-          variant={requestSubmitted ? 'secondary' : 'primary'}
-          leftIcon={hiveSymbol({
-            ios: requestSubmitted ? 'checkmark.circle.fill' : 'paperplane.fill',
-            android: requestSubmitted ? 'check_circle' : 'send',
-            web: requestSubmitted ? 'check_circle' : 'send',
-          })}
-          onPress={openRequestSheet}>
-          {requestSubmitted ? 'Edit request' : 'Start request'}
-        </Button>
-      </View>
-
-      <View style={styles.actions}>
-        <Button variant="ghost" fullWidth onPress={passListing}>
-          Pass
-        </Button>
-        <Button fullWidth onPress={saveListing}>
-          {isSaved ? 'Saved' : 'Add to saved'}
-        </Button>
-      </View>
-
       <BottomSheet
         visible={requestVisible}
         title={group ? 'Request as a group' : 'Request info'}
@@ -651,20 +637,16 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     gap: Spacing.one,
   },
-  requestPanel: {
-    borderWidth: 1,
-    borderRadius: Radius.xxl,
-    padding: Spacing.three,
-    gap: Spacing.three,
-  },
-  requestCopy: {
+  stickyBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.three,
+    gap: Spacing.two,
+    width: '100%',
+    maxWidth: 620,
+    alignSelf: 'center',
   },
-  requestText: {
+  stickyRequest: {
     flex: 1,
-    gap: Spacing.half,
   },
   notesList: {
     gap: Spacing.two,
@@ -701,10 +683,6 @@ const styles = StyleSheet.create({
   },
   faq: {
     gap: Spacing.one,
-  },
-  actions: {
-    flexDirection: 'row',
-    gap: Spacing.two,
   },
   requestSheetIntro: {
     gap: Spacing.half,
