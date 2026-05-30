@@ -1,12 +1,12 @@
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { NativeScrollEvent, NativeSyntheticEvent, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import MapView, { Marker, type Region } from 'react-native-maps';
 
 import { AppSection, SettingRow, SurfacePanel } from '@/components/hive/app-shell';
-import { BottomSheet, Button, EmptyState, FormField, IconButton, Pill, PreferenceChip, Screen, Skeleton, hiveSymbol } from '@/components/hive/primitives';
-import { ListingMetaRow, MatchBadge, PriceLabel } from '@/components/hive/listing';
+import { BottomSheet, Button, EmptyState, FormField, IconButton, IconGlyph, Pill, Screen, Skeleton, hiveSymbol } from '@/components/hive/primitives';
+import { ListingMetaRow, PriceLabel } from '@/components/hive/listing';
 import { ThemedText } from '@/components/themed-text';
 import { Radius, Shadows, Spacing } from '@/constants/theme';
 import { submitListingLeadRequest } from '@/data/lead-requests';
@@ -28,7 +28,10 @@ export default function ListingDetailScreen() {
   const { decisions, preferences, recordDecision, clearDecision } = useHiveAppState();
   const { group, members, outcomesByListing, deleteSyncedDecision } = useHiveGroup();
   const { data: detail, loading, error, refresh } = useRealListingDetail(listingId);
+  const galleryRef = useRef<ScrollView>(null);
   const [photoIndex, setPhotoIndex] = useState(0);
+  const [overviewExpanded, setOverviewExpanded] = useState(false);
+  const [expandedFaqs, setExpandedFaqs] = useState<Record<string, boolean>>({});
   const [requestVisible, setRequestVisible] = useState(false);
   const [requestSubmitted, setRequestSubmitted] = useState(false);
   const [requestSubmitting, setRequestSubmitting] = useState(false);
@@ -48,6 +51,11 @@ export default function ListingDetailScreen() {
 
   const handlePhotoChange = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     setPhotoIndex(Math.round(event.nativeEvent.contentOffset.x / contentWidth));
+  };
+
+  const selectPhoto = (index: number) => {
+    setPhotoIndex(index);
+    galleryRef.current?.scrollTo({ x: contentWidth * index, animated: true });
   };
 
   if (loading) {
@@ -73,12 +81,6 @@ export default function ListingDetailScreen() {
     );
   }
 
-  const propertyFacts = [
-    { label: 'Beds', value: listing.bedsLabel ?? `${listing.beds}` },
-    { label: 'Baths', value: listing.bathsLabel ?? `${listing.baths}` },
-    { label: 'Units', value: `${listing.availableUnitCount ?? availableUnits.length}` },
-    { label: 'Move-in', value: listing.available ?? 'Flexible' },
-  ];
   const amenities = [
     ...listing.amenities,
     detail.property.property_type ?? 'Apartment',
@@ -161,6 +163,7 @@ export default function ListingDetailScreen() {
     <Screen contentStyle={styles.screen}>
       <View style={[styles.galleryShell, { width: contentWidth, backgroundColor: theme.surface, shadowColor: theme.shadow }]}>
         <ScrollView
+          ref={galleryRef}
           horizontal
           pagingEnabled
           showsHorizontalScrollIndicator={false}
@@ -187,21 +190,35 @@ export default function ListingDetailScreen() {
             {photoIndex + 1}/{gallery.length}
           </Pill>
         </View>
-        <View style={styles.galleryDots}>
-          {gallery.map((photo, index) => (
-            <View
-              key={`${photo}-${index}`}
-              style={[
-                styles.dot,
-                {
-                  width: index === photoIndex ? 18 : 6,
-                  backgroundColor: index === photoIndex ? '#FFFFFF' : 'rgba(255,255,255,0.52)',
-                },
-              ]}
-            />
-          ))}
-        </View>
       </View>
+
+      {gallery.length > 1 ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.thumbnailRail}>
+          {gallery.slice(0, 12).map((photo, index) => {
+            const selected = index === photoIndex;
+
+            return (
+              <Pressable
+                key={`${photo}-thumb-${index}`}
+                accessibilityRole="button"
+                accessibilityLabel={`Show photo ${index + 1}`}
+                onPress={() => selectPhoto(index)}
+                style={({ pressed }) => [
+                  styles.thumbnailButton,
+                  {
+                    borderColor: selected ? theme.primary : theme.border,
+                    opacity: pressed ? 0.78 : selected ? 1 : 0.74,
+                  },
+                ]}>
+                <Image source={{ uri: photo }} style={styles.thumbnailImage} contentFit="cover" transition={160} />
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      ) : null}
 
       <View style={[styles.summary, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <View style={styles.summaryTop}>
@@ -214,7 +231,7 @@ export default function ListingDetailScreen() {
           </View>
           <View style={styles.summaryBadges}>
             <Pill tone="primary">{listing.campusDistance ?? 'Near campus'}</Pill>
-            <MatchBadge value={listing.match} compact />
+            <Pill tone="primary">{listing.match}% fit</Pill>
           </View>
         </View>
         <ListingMetaRow
@@ -226,21 +243,23 @@ export default function ListingDetailScreen() {
         />
       </View>
 
-      <AppSection title="Property facts">
-        <View style={styles.factGrid}>
-          {propertyFacts.map((fact) => (
-            <View
-              key={fact.label}
-              style={[styles.factTile, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-              <ThemedText type="metric" numberOfLines={1} adjustsFontSizeToFit>
-                {fact.value}
-              </ThemedText>
-              <ThemedText type="caption" themeColor="textSecondary">
-                {fact.label}
-              </ThemedText>
-            </View>
+      <AppSection title="Available units">
+        <SurfacePanel>
+          {(availableUnits.length > 0 ? availableUnits : detail.units).slice(0, 5).map((unit) => (
+            <SettingRow
+              key={unit.id}
+              icon={hiveSymbol({ ios: 'door.left.hand.open', android: 'meeting_room', web: 'meeting_room' })}
+              title={unit.title || unit.listing_type || 'Available unit'}
+              subtitle={[
+                unit.listing_type,
+                unit.bedrooms ? `${unit.bedrooms} bed` : null,
+                unit.bathrooms ? `${unit.bathrooms} bath` : null,
+                formatMoveIn(unit.move_in),
+              ].filter(Boolean).join(' · ')}
+              value={formatMoney(unit.rent_monthly)}
+            />
           ))}
-        </View>
+        </SurfacePanel>
       </AppSection>
 
       {group ? (
@@ -285,10 +304,21 @@ export default function ListingDetailScreen() {
 
       <AppSection title="Overview">
         <SurfacePanel>
-          <ThemedText type="small" themeColor="textSecondary">
+          <ThemedText
+            type="small"
+            themeColor="textSecondary"
+            numberOfLines={overviewExpanded ? undefined : 5}>
             {detail.property.description ??
               'A campus-ready listing with real availability, source photos, and commute context from the current UCLA dataset.'}
           </ThemedText>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => setOverviewExpanded((current) => !current)}
+            style={({ pressed }) => [styles.inlineToggle, { opacity: pressed ? 0.72 : 1 }]}>
+            <ThemedText type="caption" style={{ color: theme.primary }}>
+              {overviewExpanded ? 'Show less' : 'Read more'}
+            </ThemedText>
+          </Pressable>
         </SurfacePanel>
       </AppSection>
 
@@ -317,35 +347,16 @@ export default function ListingDetailScreen() {
         </Button>
       </View>
 
-      <AppSection title="Available units">
-        <SurfacePanel>
-          {(availableUnits.length > 0 ? availableUnits : detail.units).slice(0, 5).map((unit) => (
-            <SettingRow
-              key={unit.id}
-              icon={hiveSymbol({ ios: 'door.left.hand.open', android: 'meeting_room', web: 'meeting_room' })}
-              title={unit.title || unit.listing_type || 'Available unit'}
-              subtitle={[
-                unit.listing_type,
-                unit.bedrooms ? `${unit.bedrooms} bed` : null,
-                unit.bathrooms ? `${unit.bathrooms} bath` : null,
-                formatMoveIn(unit.move_in),
-              ].filter(Boolean).join(' · ')}
-              value={formatMoney(unit.rent_monthly)}
-            />
-          ))}
-        </SurfacePanel>
-      </AppSection>
-
       <AppSection title="Campus map">
         <View style={[styles.mapPanel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           {mapRegion && listing.coordinates ? (
             <MapView
               style={StyleSheet.absoluteFill}
               initialRegion={mapRegion}
-              scrollEnabled={false}
-              zoomEnabled={false}
+              scrollEnabled
+              zoomEnabled
               rotateEnabled={false}
-              pitchEnabled={false}
+              pitchEnabled
               loadingEnabled
               loadingBackgroundColor={theme.backgroundElement}
               showsBuildings
@@ -359,20 +370,19 @@ export default function ListingDetailScreen() {
               </Marker>
             </MapView>
           ) : null}
-          <View style={[styles.mapCopy, { backgroundColor: theme.surfaceGlass, borderColor: theme.border }]}>
-            <ThemedText type="sectionTitle">{listing.campusDistance ?? 'Near campus'}</ThemedText>
-            <ThemedText type="caption" themeColor="textSecondary">
-              {listing.campusCommute ?? 'Quick commute'} to {listing.campus ?? 'campus'}
-            </ThemedText>
-          </View>
         </View>
       </AppSection>
 
-      <AppSection title="Amenities and notes">
+      <AppSection title="Notes">
         <SurfacePanel>
-          <View style={styles.chips}>
+          <View style={styles.notesList}>
             {amenities.map((amenity, index) => (
-              <PreferenceChip key={`${amenity}-${index}`} label={amenity} selected={index < 4} />
+              <View key={`${amenity}-${index}`} style={[styles.noteRow, { borderColor: theme.border }]}>
+                <View style={[styles.noteDot, { backgroundColor: theme.primary }]} />
+                <ThemedText type="caption" themeColor="textSecondary" style={styles.noteText}>
+                  {amenity}
+                </ThemedText>
+              </View>
             ))}
           </View>
         </SurfacePanel>
@@ -401,39 +411,41 @@ export default function ListingDetailScreen() {
         </SurfacePanel>
       </AppSection>
 
-      <AppSection title="Search fit">
-        <SurfacePanel>
-          <SettingRow
-            icon={hiveSymbol({ ios: 'figure.walk', android: 'directions_walk', web: 'directions_walk' })}
-            title={`Distance to ${listing.campus ?? 'campus'}`}
-            subtitle={listing.campusCommute ?? 'Quick commute for morning classes.'}
-            value={listing.campusDistance?.replace(' to campus', '')}
-          />
-          <SettingRow
-            icon={hiveSymbol({ ios: 'checkmark.seal.fill', android: 'verified', web: 'verified' })}
-            title="Preference match"
-            subtitle="Budget, commute, timing, and size."
-            value={`${listing.match}%`}
-          />
-          <SettingRow
-            icon={hiveSymbol({ ios: 'link', android: 'link', web: 'link' })}
-            title="Source"
-            subtitle={detail.property.source_url}
-            value="UniShack"
-          />
-        </SurfacePanel>
-      </AppSection>
-
       {detail.faqs.length > 0 ? (
         <AppSection title="FAQs">
           <SurfacePanel>
             {detail.faqs.slice(0, 4).map((faq) => (
-              <View key={faq.question} style={styles.faq}>
-                <ThemedText type="smallBold">{faq.question}</ThemedText>
-                <ThemedText type="caption" themeColor="textSecondary">
-                  {faq.answer}
-                </ThemedText>
-              </View>
+              <Pressable
+                key={faq.question}
+                accessibilityRole="button"
+                accessibilityState={{ expanded: Boolean(expandedFaqs[faq.question]) }}
+                onPress={() =>
+                  setExpandedFaqs((current) => ({
+                    ...current,
+                    [faq.question]: !current[faq.question],
+                  }))
+                }
+                style={({ pressed }) => [styles.faq, { opacity: pressed ? 0.78 : 1 }]}>
+                <View style={styles.faqQuestion}>
+                  <ThemedText type="smallBold" style={styles.faqQuestionText}>
+                    {faq.question}
+                  </ThemedText>
+                  <IconGlyph
+                    name={hiveSymbol({
+                      ios: expandedFaqs[faq.question] ? 'chevron.up' : 'chevron.down',
+                      android: expandedFaqs[faq.question] ? 'keyboard_arrow_up' : 'keyboard_arrow_down',
+                      web: expandedFaqs[faq.question] ? 'keyboard_arrow_up' : 'keyboard_arrow_down',
+                    })}
+                    color={theme.textSecondary}
+                    size={18}
+                  />
+                </View>
+                {expandedFaqs[faq.question] ? (
+                  <ThemedText type="caption" themeColor="textSecondary">
+                    {faq.answer}
+                  </ThemedText>
+                ) : null}
+              </Pressable>
             ))}
           </SurfacePanel>
         </AppSection>
@@ -590,18 +602,34 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  galleryDots: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: Spacing.three,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 5,
+  thumbnailRail: {
+    paddingHorizontal: Spacing.one,
+    gap: Spacing.two,
   },
-  dot: {
-    height: 6,
-    borderRadius: Radius.pill,
+  thumbnailButton: {
+    width: 68,
+    height: 54,
+    borderRadius: Radius.md,
+    borderWidth: 2,
+    overflow: 'hidden',
+  },
+  thumbnailImage: {
+    width: '100%',
+    height: '100%',
+  },
+  inlineToggle: {
+    alignSelf: 'flex-start',
+    minHeight: 30,
+    justifyContent: 'center',
+  },
+  faqQuestion: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.three,
+  },
+  faqQuestionText: {
+    flex: 1,
   },
   summary: {
     borderWidth: 1,
@@ -638,24 +666,23 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: Spacing.half,
   },
-  factGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+  notesList: {
     gap: Spacing.two,
   },
-  factTile: {
+  noteRow: {
+    minHeight: 38,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  noteDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  noteText: {
     flex: 1,
-    minWidth: 128,
-    minHeight: 78,
-    borderRadius: Radius.lg,
-    borderWidth: 1,
-    padding: Spacing.three,
-    justifyContent: 'center',
-  },
-  chips: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.two,
   },
   mapPanel: {
     height: 238,
@@ -671,15 +698,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: Spacing.two,
     ...Shadows.soft,
-  },
-  mapCopy: {
-    position: 'absolute',
-    left: Spacing.three,
-    right: Spacing.three,
-    bottom: Spacing.three,
-    borderRadius: Radius.lg,
-    borderWidth: 1,
-    padding: Spacing.three,
   },
   faq: {
     gap: Spacing.one,
