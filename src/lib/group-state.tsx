@@ -82,6 +82,7 @@ type HiveGroupContextValue = {
   matchedIds: string[];
   partialIds: string[];
   outcomesByListing: Record<string, GroupOutcome>;
+  validateGroupInvite: (inviteCode: string) => Promise<boolean>;
   createGroup: (nextPreferences?: Partial<SearchPreferences>, groupName?: string) => Promise<void>;
   joinGroup: (inviteCode: string, nextPreferences?: Partial<SearchPreferences>) => Promise<void>;
   renameGroup: (name: string) => Promise<void>;
@@ -509,6 +510,23 @@ export function HiveGroupProvider({ children }: { children: ReactNode }) {
     [outcomes],
   );
 
+  const validateGroupInvite = useCallback(async (inviteCode: string) => {
+    const user = await ensureSession();
+    setAuthUserId(user.id);
+    setAuthReady(true);
+
+    const supabase = getSupabaseClient();
+    const { data, error: validateError } = await supabase.rpc('validate_group_invite', {
+      raw_invite_code: inviteCode,
+    });
+
+    if (validateError) {
+      throw new Error(`Unable to check group code: ${validateError.message}`);
+    }
+
+    return Boolean(data);
+  }, [ensureSession]);
+
   const value = useMemo<HiveGroupContextValue>(
     () => ({
       authReady,
@@ -525,6 +543,7 @@ export function HiveGroupProvider({ children }: { children: ReactNode }) {
       matchedIds: matchedOutcomes.map((outcome) => outcome.propertyId),
       partialIds: partialOutcomes.map((outcome) => outcome.propertyId),
       outcomesByListing,
+      validateGroupInvite,
       createGroup,
       joinGroup,
       renameGroup,
@@ -552,6 +571,7 @@ export function HiveGroupProvider({ children }: { children: ReactNode }) {
       removeMember,
       refresh,
       syncing,
+      validateGroupInvite,
       votes,
     ],
   );

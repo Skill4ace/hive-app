@@ -1,4 +1,3 @@
-import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Animated, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
@@ -38,7 +37,7 @@ type OnboardingState = {
   bathrooms: number;
 };
 
-const steps: { key: OnboardingStep; title: string; subtitle?: string }[] = [
+const steps: { key: OnboardingStep; title: string; subtitle: string }[] = [
   {
     key: 'identity',
     title: 'Start your search',
@@ -47,27 +46,27 @@ const steps: { key: OnboardingStep; title: string; subtitle?: string }[] = [
   {
     key: 'group',
     title: 'Add your group',
-    subtitle: 'Use a private code or create one.',
+    subtitle: 'Join roommates or keep searching solo.',
   },
   {
     key: 'rent',
     title: "What's your budget?",
-    subtitle: 'Set the monthly listing range.',
+    subtitle: 'Set a monthly range that works.',
   },
   {
     key: 'commute',
     title: 'How close do you want to be?',
-    subtitle: 'We rank homes inside this radius first.',
+    subtitle: 'Prioritize homes near campus.',
   },
   {
     key: 'room',
     title: 'Size and timing',
-    subtitle: 'Set the shape of the place and when you need it.',
+    subtitle: 'Pick the basics for your search.',
   },
   {
     key: 'review',
     title: 'Ready to swipe',
-    subtitle: 'Group matches appear after everyone votes.',
+    subtitle: 'Review your setup before starting.',
   },
 ];
 
@@ -89,10 +88,12 @@ export default function OnboardingScreen() {
   const { preview } = useLocalSearchParams<{ preview?: string }>();
   const theme = useTheme();
   const { preferences, updatePreferences } = useHiveAppState();
-  const { createGroup, joinGroup } = useHiveGroup();
+  const { createGroup, joinGroup, validateGroupInvite } = useHiveGroup();
   const [state, setState] = useState<OnboardingState>(() => stateFromPreferences(preferences));
   const [stepIndex, setStepIndex] = useState(0);
   const [submitting, setSubmitting] = useState(false);
+  const [checkingGroupCode, setCheckingGroupCode] = useState(false);
+  const [groupCodeError, setGroupCodeError] = useState<string | null>(null);
   const [fade] = useState(() => new Animated.Value(1));
   const [translate] = useState(() => new Animated.Value(0));
   const step = steps[stepIndex];
@@ -124,7 +125,26 @@ export default function OnboardingScreen() {
   };
 
   const goNext = async () => {
-    if (!canContinue || submitting) return;
+    if (!canContinue || submitting || checkingGroupCode) return;
+
+    if (step.key === 'group' && state.groupMode === 'join') {
+      setCheckingGroupCode(true);
+      setGroupCodeError(null);
+
+      try {
+        const validInvite = await validateGroupInvite(state.groupCode);
+        if (!validInvite) {
+          setGroupCodeError('That group code does not look valid.');
+          return;
+        }
+      } catch (error) {
+        setGroupCodeError(readErrorMessage(error));
+        return;
+      } finally {
+        setCheckingGroupCode(false);
+      }
+    }
+
     if (stepIndex === steps.length - 1) {
       setSubmitting(true);
       const nextPreferences = {
@@ -140,8 +160,6 @@ export default function OnboardingScreen() {
         bathrooms: state.bathrooms,
       };
 
-      updatePreferences(nextPreferences);
-
       try {
         if (state.groupMode === 'create') {
           await createGroup(nextPreferences);
@@ -149,7 +167,13 @@ export default function OnboardingScreen() {
           await joinGroup(state.groupCode, nextPreferences);
         }
 
+        updatePreferences(nextPreferences);
         router.replace('/discover');
+      } catch (error) {
+        if (state.groupMode === 'join') {
+          setGroupCodeError(readErrorMessage(error));
+          setStepIndex(1);
+        }
       } finally {
         setSubmitting(false);
       }
@@ -219,11 +243,9 @@ export default function OnboardingScreen() {
             <ThemedText type="title" style={styles.title}>
               {step.title}
             </ThemedText>
-            {step.subtitle ? (
-              <ThemedText type="small" themeColor="textSecondary" style={styles.subtitle}>
-                {step.subtitle}
-              </ThemedText>
-            ) : null}
+            <ThemedText type="small" themeColor="textSecondary" style={styles.subtitle}>
+              {step.subtitle}
+            </ThemedText>
           </View>
 
           <Animated.View
@@ -234,13 +256,13 @@ export default function OnboardingScreen() {
                 transform: [{ translateY: translate }],
               },
             ]}>
-            {renderStep(step.key, state, update)}
+            {renderStep(step.key, state, update, groupCodeError, () => setGroupCodeError(null))}
           </Animated.View>
         </ScrollView>
 
         <View style={[styles.footer, { backgroundColor: theme.background, borderTopColor: theme.border }]}>
-          <PrimaryAction disabled={!canContinue || submitting} onPress={goNext}>
-            {submitting ? 'Saving' : stepIndex === steps.length - 1 ? 'Start swiping' : 'Continue'}
+          <PrimaryAction disabled={!canContinue || submitting || checkingGroupCode} onPress={goNext}>
+            {checkingGroupCode ? 'Checking' : submitting ? 'Saving' : stepIndex === steps.length - 1 ? 'Start swiping' : 'Continue'}
           </PrimaryAction>
         </View>
       </View>
@@ -266,12 +288,18 @@ function normalizeInviteInput(value: string) {
   return value.replace(/[^a-z]/gi, '').toUpperCase().slice(0, 4);
 }
 
+function readErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : 'Something went wrong.';
+}
+
 const textureRows = [104, 188, 272, 356, 440, 524, 608, 692, 776];
 
 function renderStep(
   step: OnboardingStep,
   state: OnboardingState,
   update: <K extends keyof OnboardingState>(key: K, value: OnboardingState[K]) => void,
+  groupCodeError: string | null,
+  clearGroupCodeError: () => void,
 ) {
   switch (step) {
     case 'identity':
@@ -297,6 +325,7 @@ function renderStep(
             placeholder="ABCD"
             onChangeText={(value) => {
               const code = normalizeInviteInput(value);
+              clearGroupCodeError();
               update('groupCode', code);
               update('groupMode', code.length > 0 ? 'join' : null);
             }}
@@ -314,17 +343,24 @@ function renderStep(
               label="Create empty group"
               detail="Invite roommates after onboarding"
               selected={state.groupMode === 'create'}
-              onPress={() => update('groupMode', 'create')}
+              onPress={() => {
+                clearGroupCodeError();
+                update('groupMode', 'create');
+              }}
               icon={hiveSymbol({ ios: 'plus', android: 'add', web: 'add' })}
             />
             <OptionRow
               label="Skip for now"
               detail="Swipe solo and add a group later"
               selected={state.groupMode === 'skip'}
-              onPress={() => update('groupMode', 'skip')}
+              onPress={() => {
+                clearGroupCodeError();
+                update('groupMode', 'skip');
+              }}
               icon={hiveSymbol({ ios: 'sparkles', android: 'auto_awesome', web: 'auto_awesome' })}
             />
           </View>
+          {groupCodeError ? <GroupCodeError message={groupCodeError} /> : null}
         </View>
       );
     case 'rent':
@@ -423,6 +459,18 @@ function LockedCampusCard() {
   );
 }
 
+function GroupCodeError({ message }: { message: string }) {
+  const theme = useTheme();
+
+  return (
+    <View style={[styles.groupCodeError, { backgroundColor: theme.dangerSoft, borderColor: theme.dangerSoft }]}>
+      <ThemedText type="caption" style={{ color: theme.danger }}>
+        {message}
+      </ThemedText>
+    </View>
+  );
+}
+
 function OptionRow({
   label,
   detail,
@@ -487,11 +535,16 @@ function ReviewStage({ state }: { state: OnboardingState }) {
       : state.groupMode === 'join'
         ? state.groupCode || 'Invite code'
         : 'Solo for now';
+  const initial = (state.username.trim().charAt(0) || 'R').toUpperCase();
 
   return (
     <View style={styles.reviewStage}>
       <View style={styles.reviewHero}>
-        <Image source={require('../../../hivelogoappicon.png')} style={styles.reviewLogo} contentFit="cover" />
+        <View style={styles.reviewAvatar}>
+          <ThemedText type="subtitle" style={styles.reviewAvatarText}>
+            {initial}
+          </ThemedText>
+        </View>
         <View style={styles.reviewHeroCopy}>
           <ThemedText type="subtitle">@{state.username || 'username'}</ThemedText>
           <ThemedText type="small" themeColor="textSecondary">
@@ -612,6 +665,9 @@ const styles = StyleSheet.create({
     borderRadius: Radius.pill,
   },
   body: {
+    width: '100%',
+    maxWidth: 520,
+    alignSelf: 'center',
     gap: Spacing.four,
   },
   scroll: {
@@ -646,6 +702,7 @@ const styles = StyleSheet.create({
     gap: Spacing.three,
   },
   stage: {
+    width: '100%',
     gap: Spacing.four,
   },
   largeInputWrap: {
@@ -674,6 +731,12 @@ const styles = StyleSheet.create({
   },
   optionStack: {
     gap: Spacing.two,
+  },
+  groupCodeError: {
+    borderWidth: 1,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
   },
   option: {
     minHeight: 64,
@@ -714,6 +777,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   reviewStage: {
+    width: '100%',
     gap: Spacing.four,
   },
   reviewHero: {
@@ -721,10 +785,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.three,
   },
-  reviewLogo: {
-    width: 76,
-    height: 76,
-    borderRadius: Radius.lg,
+  reviewAvatar: {
+    width: 62,
+    height: 62,
+    borderRadius: 31,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#241027',
+  },
+  reviewAvatarText: {
+    color: '#FFFFFF',
   },
   reviewHeroCopy: {
     flex: 1,
