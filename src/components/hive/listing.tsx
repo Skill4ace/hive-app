@@ -454,18 +454,32 @@ type PreferenceSummaryProps = {
   title: string;
   items: { icon: IconName; label: string; value: string }[];
   actionLabel?: string;
+  onActionPress?: () => void;
 };
 
-export function PreferenceSummary({ title, items, actionLabel = 'Edit' }: PreferenceSummaryProps) {
+export function PreferenceSummary({ title, items, actionLabel = 'Edit', onActionPress }: PreferenceSummaryProps) {
   const theme = useTheme();
 
   return (
     <View style={[styles.summary, { backgroundColor: theme.surface, borderColor: theme.border }]}>
       <View style={styles.summaryHeader}>
         <ThemedText type="sectionTitle">{title}</ThemedText>
-        <ThemedText type="caption" style={{ color: theme.primary }}>
-          {actionLabel}
-        </ThemedText>
+        {onActionPress ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${actionLabel} ${title}`}
+            onPress={onActionPress}
+            hitSlop={10}
+            style={({ pressed }) => ({ opacity: pressed ? 0.62 : 1 })}>
+            <ThemedText type="caption" style={{ color: theme.primary }}>
+              {actionLabel}
+            </ThemedText>
+          </Pressable>
+        ) : (
+          <ThemedText type="caption" style={{ color: theme.primary }}>
+            {actionLabel}
+          </ThemedText>
+        )}
       </View>
       <View style={styles.summaryList}>
         {items.map((item) => (

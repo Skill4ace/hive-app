@@ -99,11 +99,21 @@ export default function ProfileScreen() {
       </View>
 
       <AppSection title="Search setup">
-        <PreferenceSummary title="Your filters" items={searchItems} actionLabel="Edit" />
+        <PreferenceSummary
+          title="Your filters"
+          items={searchItems}
+          actionLabel="Edit"
+          onActionPress={() => router.push({ pathname: '/preferences', params: { section: 'search' } })}
+        />
       </AppSection>
 
       <AppSection title="Room fit">
-        <PreferenceSummary title="Listing shape" items={roomItems} actionLabel="Edit" />
+        <PreferenceSummary
+          title="Listing shape"
+          items={roomItems}
+          actionLabel="Edit"
+          onActionPress={() => router.push({ pathname: '/preferences', params: { section: 'room' } })}
+        />
       </AppSection>
 
       <AppSection title="Group">
@@ -125,9 +135,6 @@ export default function ProfileScreen() {
           leftIcon={hiveSymbol({ ios: 'rectangle.stack.fill', android: 'view_carousel', web: 'view_carousel' })}
           onPress={() => router.push({ pathname: '/onboarding', params: { preview: '1' } })}>
           View onboarding
-        </Button>
-        <Button fullWidth onPress={() => router.push('/preferences')}>
-          Edit search preferences
         </Button>
         <Button
           fullWidth
