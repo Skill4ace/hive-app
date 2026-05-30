@@ -1,11 +1,13 @@
 import { useRouter } from 'expo-router';
-import { Alert, StyleSheet, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, View } from 'react-native';
 
 import { AppSection, AppTopBar, SettingRow, SurfacePanel } from '@/components/hive/app-shell';
-import { Button, Pill, Screen, hiveSymbol } from '@/components/hive/primitives';
+import { Button, IconGlyph, Pill, Screen, hiveSymbol } from '@/components/hive/primitives';
 import { PreferenceSummary } from '@/components/hive/listing';
 import { ThemedText } from '@/components/themed-text';
-import { Spacing } from '@/constants/theme';
+import { Radius, Shadows, Spacing } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
+import { useAppearance, type AppearancePreference } from '@/lib/appearance';
 import { useHiveGroup } from '@/lib/group-state';
 import { useHiveAppState } from '@/lib/hive-state';
 
@@ -155,6 +157,10 @@ export default function ProfileScreen() {
         </SurfacePanel>
       </AppSection>
 
+      <AppSection title="Appearance">
+        <AppearanceToggle />
+      </AppSection>
+
       <View style={styles.actions}>
         <Button
           fullWidth
@@ -183,12 +189,85 @@ export default function ProfileScreen() {
   );
 }
 
+const APPEARANCE_OPTIONS: {
+  value: AppearancePreference;
+  label: string;
+  icon: Parameters<typeof hiveSymbol>[0];
+}[] = [
+  {
+    value: 'system',
+    label: 'System',
+    icon: hiveSymbol({ ios: 'circle.lefthalf.filled', android: 'contrast', web: 'contrast' }),
+  },
+  {
+    value: 'light',
+    label: 'Light',
+    icon: hiveSymbol({ ios: 'sun.max.fill', android: 'light_mode', web: 'light_mode' }),
+  },
+  {
+    value: 'dark',
+    label: 'Dark',
+    icon: hiveSymbol({ ios: 'moon.fill', android: 'dark_mode', web: 'dark_mode' }),
+  },
+];
+
+function AppearanceToggle() {
+  const theme = useTheme();
+  const { preference, setPreference } = useAppearance();
+
+  return (
+    <View style={[styles.segmented, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}>
+      {APPEARANCE_OPTIONS.map((option) => {
+        const selected = preference === option.value;
+
+        return (
+          <Pressable
+            key={option.value}
+            accessibilityRole="button"
+            accessibilityState={{ selected }}
+            accessibilityLabel={`${option.label} appearance`}
+            onPress={() => setPreference(option.value)}
+            style={({ pressed }) => [
+              styles.segment,
+              selected && [styles.segmentSelected, { backgroundColor: theme.surface, shadowColor: theme.shadow }],
+              { opacity: pressed && !selected ? 0.7 : 1 },
+            ]}>
+            <IconGlyph name={option.icon} size={18} color={selected ? theme.primary : theme.textSecondary} />
+            <ThemedText type="smallBold" style={{ color: selected ? theme.text : theme.textSecondary }}>
+              {option.label}
+            </ThemedText>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   screen: {
     width: '100%',
     maxWidth: 620,
     alignSelf: 'center',
     paddingBottom: 110,
+  },
+  segmented: {
+    flexDirection: 'row',
+    borderWidth: 1,
+    borderRadius: Radius.lg,
+    padding: Spacing.half,
+    gap: Spacing.half,
+  },
+  segment: {
+    flex: 1,
+    minHeight: 46,
+    borderRadius: Radius.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.one,
+  },
+  segmentSelected: {
+    ...Shadows.soft,
   },
   identity: {
     minHeight: 88,
