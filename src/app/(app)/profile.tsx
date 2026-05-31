@@ -1,7 +1,9 @@
 import { useRouter } from 'expo-router';
+import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
 
 import { AppSection, AppTopBar, SettingRow, SurfacePanel } from '@/components/hive/app-shell';
+import { LegalSheet, type LegalDoc } from '@/components/hive/legal-document';
 import { Button, IconGlyph, Pill, Screen, hiveSymbol } from '@/components/hive/primitives';
 import { PreferenceSummary } from '@/components/hive/listing';
 import { ThemedText } from '@/components/themed-text';
@@ -15,6 +17,7 @@ export default function ProfileScreen() {
   const router = useRouter();
   const { preferences, likedIds, passedIds, clearDecision, clearAllLocalData } = useHiveAppState();
   const { group, members, deleteSyncedDecision, deleteAccount } = useHiveGroup();
+  const [legalDoc, setLegalDoc] = useState<LegalDoc | null>(null);
   const confirmDeleteAccount = () => {
     Alert.alert(
       'Delete account?',
@@ -165,9 +168,16 @@ export default function ProfileScreen() {
         <Button
           fullWidth
           variant="ghost"
-          leftIcon={hiveSymbol({ ios: 'rectangle.stack.fill', android: 'view_carousel', web: 'view_carousel' })}
-          onPress={() => router.push({ pathname: '/onboarding', params: { preview: '1' } })}>
-          View onboarding
+          leftIcon={hiveSymbol({ ios: 'lock.shield.fill', android: 'privacy_tip', web: 'privacy_tip' })}
+          onPress={() => setLegalDoc('privacy')}>
+          Privacy Policy
+        </Button>
+        <Button
+          fullWidth
+          variant="ghost"
+          leftIcon={hiveSymbol({ ios: 'doc.text.fill', android: 'description', web: 'description' })}
+          onPress={() => setLegalDoc('terms')}>
+          Terms of Service
         </Button>
         <Button
           fullWidth
@@ -185,6 +195,8 @@ export default function ProfileScreen() {
           Delete account
         </Button>
       </View>
+
+      <LegalSheet doc={legalDoc} onClose={() => setLegalDoc(null)} />
     </Screen>
   );
 }

@@ -71,7 +71,7 @@ const steps: { key: OnboardingStep; title: string; subtitle: string }[] = [
 ];
 
 const initialState: OnboardingState = {
-  username: 'Rey',
+  username: '',
   campus: 'UCLA',
   groupCode: '',
   groupMode: null,
@@ -313,7 +313,7 @@ function renderStep(
             <LargeInput
               label="Username"
               value={state.username}
-              placeholder="choose a username"
+              placeholder=""
               onChangeText={(value) => update('username', value)}
             />
             <LockedCampusCard />
@@ -539,7 +539,7 @@ function ReviewStage({ state }: { state: OnboardingState }) {
       : state.groupMode === 'join'
         ? state.groupCode || 'Invite code'
         : 'Solo for now';
-  const initial = (state.username.trim().charAt(0) || 'R').toUpperCase();
+  const initial = (state.username.trim().charAt(0) || '?').toUpperCase();
 
   return (
     <View style={styles.reviewStage}>

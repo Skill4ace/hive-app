@@ -61,7 +61,7 @@ const STORAGE_KEY = 'hive.local-state.v1';
 const HISTORY_LIMIT = 100;
 
 export const defaultSearchPreferences: SearchPreferences = {
-  username: 'Rey',
+  username: '',
   campusSlug: 'ucla',
   campusName: 'UCLA',
   budgetMin: 600,
@@ -250,12 +250,23 @@ function normalizePersistedState(value: Partial<PersistedHiveState> | null): Per
     preferences: {
       ...defaultSearchPreferences,
       ...(value.preferences ?? {}),
+      username: normalizeUsername(value.preferences?.username),
       campusSlug: normalizeCampusSlug(value.preferences?.campusSlug ?? value.preferences?.campusName),
       campusName: (value.preferences?.campusName || defaultSearchPreferences.campusName).toUpperCase(),
     },
     decisions: value.decisions && typeof value.decisions === 'object' ? value.decisions : {},
     history: Array.isArray(value.history) ? value.history.slice(0, HISTORY_LIMIT) : [],
   };
+}
+
+// Older builds seeded the username with a placeholder name. Treat that legacy
+// value as empty so existing installs start with a blank username field.
+const LEGACY_SEED_USERNAMES = new Set(['rey']);
+
+function normalizeUsername(value?: string) {
+  const trimmed = (value ?? '').trim();
+  if (LEGACY_SEED_USERNAMES.has(trimmed.toLowerCase())) return '';
+  return trimmed;
 }
 
 function normalizeCampusSlug(value?: string) {
