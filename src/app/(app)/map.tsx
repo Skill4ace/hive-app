@@ -39,8 +39,16 @@ export default function MapScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      // Native tabs keep this screen mounted, so the initial useState seed never
+      // re-runs. Apply the incoming `selected` param on focus, then clear it so a
+      // plain tab tap doesn't re-open a stale listing and re-selecting the same
+      // listing from Discover still fires.
+      if (params.selected) {
+        setSelectedId(params.selected);
+        router.setParams({ selected: undefined });
+      }
       searchInputRef.current?.blur();
-    }, []),
+    }, [params.selected, router]),
   );
 
   return (
