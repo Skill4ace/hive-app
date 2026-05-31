@@ -32,6 +32,10 @@ export const SCHOOLS: School[] = [
 
 export const DEFAULT_SCHOOL = SCHOOLS[0];
 
+// Sentinel that keeps the original Hive purple instead of a school accent —
+// used for the pre-app flow (sign-in + onboarding) before a campus is committed.
+export const BRAND_SLUG = 'hive';
+
 export function getSchool(slug?: string): School {
   const normalized = (slug ?? '').toLowerCase();
   return SCHOOLS.find((school) => school.slug === normalized) ?? DEFAULT_SCHOOL;
@@ -44,6 +48,11 @@ type ThemePalette = Record<ThemeColor, string>;
 // Builds a full palette by overriding the primary family with the school's
 // accent, so the whole app (buttons, pills, highlights) picks up the color.
 export function schoolPalette(slug: string, mode: ColorScheme): ThemePalette {
+  // Brand sentinel keeps the untinted Hive purple palette.
+  if (slug === BRAND_SLUG) {
+    return { ...Colors[mode] };
+  }
+
   const school = getSchool(slug);
   const base = Colors[mode];
 
@@ -81,6 +90,11 @@ export function CampusAccentProvider({ children }: { children: ReactNode }) {
   const slug = (preferences.campusSlug || DEFAULT_SCHOOL.slug).toLowerCase();
 
   return createElement(ActiveCampusContext, { value: slug }, children);
+}
+
+/** Forces the brand-purple palette for a subtree (the pre-app auth flow). */
+export function BrandAccentProvider({ children }: { children: ReactNode }) {
+  return createElement(ActiveCampusContext, { value: BRAND_SLUG }, children);
 }
 
 export function useActiveCampusSlug(): string {

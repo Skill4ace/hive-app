@@ -13,9 +13,10 @@ import { IconButton, IconGlyph, hiveSymbol } from '@/components/hive/primitives'
 import { ThemedText } from '@/components/themed-text';
 import { Fonts, Radius, Shadows, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { SchoolSelect } from '@/components/hive/school-select';
 import { useHiveGroup } from '@/lib/group-state';
 import { useHiveAppState, type SearchPreferences } from '@/lib/hive-state';
-import { getSchool, SCHOOLS } from '@/lib/schools';
+import { getSchool } from '@/lib/schools';
 
 type OnboardingStep =
   | 'identity'
@@ -320,14 +321,22 @@ function renderStep(
               placeholder="choose a username"
               onChangeText={(value) => update('username', value)}
             />
-            <SchoolPicker
-              value={state.campusSlug}
-              onChange={(slug) => {
-                const school = getSchool(slug);
-                update('campusSlug', school.slug);
-                update('campus', school.shortName);
-              }}
-            />
+            <View style={styles.largeInputWrap}>
+              <ThemedText type="label" themeColor="textTertiary">
+                Campus
+              </ThemedText>
+              <SchoolSelect
+                value={state.campusSlug}
+                onChange={(slug) => {
+                  const school = getSchool(slug);
+                  update('campusSlug', school.slug);
+                  update('campus', school.shortName);
+                }}
+              />
+              <ThemedText type="caption" themeColor="textSecondary">
+                Listings follow your campus.
+              </ThemedText>
+            </View>
           </View>
         </View>
       );
@@ -448,60 +457,6 @@ function LargeInput({
           },
         ]}
       />
-    </View>
-  );
-}
-
-function SchoolPicker({
-  value,
-  onChange,
-}: {
-  value: string;
-  onChange: (slug: string) => void;
-}) {
-  const theme = useTheme();
-
-  return (
-    <View style={styles.largeInputWrap}>
-      <ThemedText type="label" themeColor="textTertiary">
-        Campus
-      </ThemedText>
-      <View style={styles.schoolGrid}>
-        {SCHOOLS.map((school) => {
-          const selected = school.slug === value;
-
-          return (
-            <Pressable
-              key={school.slug}
-              accessibilityRole="button"
-              accessibilityState={{ selected }}
-              accessibilityLabel={school.name}
-              onPress={() => onChange(school.slug)}
-              style={({ pressed }) => [
-                styles.schoolChip,
-                {
-                  backgroundColor: selected ? school.accent : theme.surface,
-                  borderColor: selected ? school.accent : theme.border,
-                  opacity: pressed ? 0.85 : 1,
-                  shadowColor: theme.shadow,
-                },
-              ]}>
-              <ThemedText type="smallBold" style={{ color: selected ? '#FFFFFF' : theme.text }}>
-                {school.shortName}
-              </ThemedText>
-              <ThemedText
-                type="caption"
-                numberOfLines={1}
-                style={{ color: selected ? 'rgba(255, 255, 255, 0.82)' : theme.textSecondary }}>
-                {school.name}
-              </ThemedText>
-            </Pressable>
-          );
-        })}
-      </View>
-      <ThemedText type="caption" themeColor="textSecondary">
-        Listings and the app accent follow your campus.
-      </ThemedText>
     </View>
   );
 }
@@ -768,23 +723,6 @@ const styles = StyleSheet.create({
     // clip at the top of the input (matches campusLockedValue's lineHeight).
     lineHeight: 31,
     fontWeight: '700',
-  },
-  schoolGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.two,
-  },
-  schoolChip: {
-    flexGrow: 1,
-    flexBasis: '47%',
-    minHeight: 60,
-    borderRadius: Radius.md,
-    borderWidth: 1,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
-    justifyContent: 'center',
-    gap: 2,
-    ...Shadows.soft,
   },
   optionStack: {
     gap: Spacing.two,

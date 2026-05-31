@@ -75,12 +75,7 @@ export default function PreferencesScreen() {
         <>
           <AppSection title="Campus">
             <SurfacePanel>
-              <View style={styles.singleRow}>
-                <ThemedText type="sectionTitle">{draft.campusName}</ThemedText>
-                <ThemedText type="caption" themeColor="textSecondary">
-                  More campuses later
-                </ThemedText>
-              </View>
+              <ThemedText type="sectionTitle">{draft.campusName}</ThemedText>
             </SurfacePanel>
           </AppSection>
 
@@ -222,9 +217,6 @@ const styles = StyleSheet.create({
     maxWidth: 620,
     alignSelf: 'center',
     paddingBottom: Spacing.six,
-  },
-  singleRow: {
-    gap: Spacing.half,
   },
   subgroup: {
     gap: Spacing.two,
