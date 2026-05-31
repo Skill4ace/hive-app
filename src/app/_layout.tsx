@@ -9,6 +9,7 @@ import { Colors } from '@/constants/theme';
 import { AppearanceProvider, useAppColorScheme } from '@/lib/appearance';
 import { HiveGroupProvider } from '@/lib/group-state';
 import { HiveAppStateProvider } from '@/lib/hive-state';
+import { CampusAccentProvider } from '@/lib/schools';
 
 export default function TabLayout() {
   return (
@@ -46,25 +47,27 @@ function RootLayoutNav() {
   return (
     <ThemeProvider value={navigationTheme}>
       <HiveAppStateProvider>
-        <HiveGroupProvider>
-          <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
-          <AnimatedSplashOverlay />
-          <Stack
-            screenOptions={{
-              headerShown: false,
-              contentStyle: { backgroundColor: colors.background },
-            }}>
-            <Stack.Screen name="index" />
-            <Stack.Screen name="(app)" />
-            <Stack.Screen name="(auth)" options={{ presentation: 'card', gestureEnabled: false }} />
-            <Stack.Screen name="listing/[id]" options={{ presentation: 'card' }} />
-            <Stack.Screen name="group/[id]" options={{ presentation: 'card' }} />
-            <Stack.Screen name="preferences" options={{ presentation: 'card' }} />
-            <Stack.Screen name="account" options={{ presentation: 'card' }} />
-            <Stack.Screen name="notifications" options={{ presentation: 'card' }} />
-            <Stack.Screen name="privacy" options={{ presentation: 'card' }} />
-          </Stack>
-        </HiveGroupProvider>
+        <CampusAccentProvider>
+          <HiveGroupProvider>
+            <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
+            <AnimatedSplashOverlay />
+            <Stack
+              screenOptions={{
+                headerShown: false,
+                contentStyle: { backgroundColor: colors.background },
+              }}>
+              <Stack.Screen name="index" />
+              <Stack.Screen name="(app)" />
+              <Stack.Screen name="(auth)" options={{ presentation: 'card', gestureEnabled: false }} />
+              <Stack.Screen name="listing/[id]" options={{ presentation: 'card' }} />
+              <Stack.Screen name="group/[id]" options={{ presentation: 'card' }} />
+              <Stack.Screen name="preferences" options={{ presentation: 'card' }} />
+              <Stack.Screen name="account" options={{ presentation: 'card' }} />
+              <Stack.Screen name="notifications" options={{ presentation: 'card' }} />
+              <Stack.Screen name="privacy" options={{ presentation: 'card' }} />
+            </Stack>
+          </HiveGroupProvider>
+        </CampusAccentProvider>
       </HiveAppStateProvider>
     </ThemeProvider>
   );

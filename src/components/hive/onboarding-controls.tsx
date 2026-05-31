@@ -64,9 +64,11 @@ export function BudgetRangeStage({
 
 export function CampusRadiusStage({
   miles,
+  campusLabel = 'UCLA',
   onChange,
 }: {
   miles: number;
+  campusLabel?: string;
   onChange: (miles: number) => void;
 }) {
   const walkMinutes = Math.round(miles * 19);
@@ -74,7 +76,7 @@ export function CampusRadiusStage({
 
   return (
     <View style={styles.stage}>
-      <CampusMap miles={miles} walkMinutes={walkMinutes} bikeMinutes={bikeMinutes} />
+      <CampusMap miles={miles} walkMinutes={walkMinutes} bikeMinutes={bikeMinutes} campusLabel={campusLabel} />
 
       <View style={styles.radiusReadout}>
         <View style={styles.radiusNumberRow}>
@@ -201,10 +203,12 @@ function CampusMap({
   miles,
   walkMinutes,
   bikeMinutes,
+  campusLabel,
 }: {
   miles: number;
   walkMinutes: number;
   bikeMinutes: number;
+  campusLabel: string;
 }) {
   const theme = useTheme();
   const radiusSize = 118 + ((miles - RADIUS_MIN) / (RADIUS_MAX - RADIUS_MIN)) * 132;
@@ -246,7 +250,7 @@ function CampusMap({
       />
       <View style={[styles.campusPill, { backgroundColor: theme.primary }]}>
         <ThemedText type="smallBold" style={{ color: theme.primaryText }}>
-          UCLA
+          {campusLabel}
         </ThemedText>
       </View>
       <IconGlyph

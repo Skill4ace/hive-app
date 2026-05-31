@@ -15,6 +15,7 @@ import { Fonts, Radius, Shadows, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useHiveGroup } from '@/lib/group-state';
 import { useHiveAppState, type SearchPreferences } from '@/lib/hive-state';
+import { getSchool, SCHOOLS } from '@/lib/schools';
 
 type OnboardingStep =
   | 'identity'
@@ -27,6 +28,7 @@ type OnboardingStep =
 type OnboardingState = {
   username: string;
   campus: string;
+  campusSlug: string;
   groupCode: string;
   groupMode: 'join' | 'create' | 'skip' | null;
   budgetMin: number;
@@ -73,6 +75,7 @@ const steps: { key: OnboardingStep; title: string; subtitle: string }[] = [
 const initialState: OnboardingState = {
   username: 'Rey',
   campus: 'UCLA',
+  campusSlug: 'ucla',
   groupCode: '',
   groupMode: null,
   budgetMin: 600,
@@ -151,11 +154,11 @@ export default function OnboardingScreen() {
 
     if (stepIndex === steps.length - 1) {
       setSubmitting(true);
+      const school = getSchool(state.campusSlug);
       const nextPreferences = {
         username: state.username.trim(),
-        // Campus is locked to UCLA for v1.
-        campusName: 'UCLA',
-        campusSlug: 'ucla',
+        campusName: school.shortName,
+        campusSlug: school.slug,
         budgetMin: state.budgetMin,
         budgetMax: state.budgetMax,
         moveIn: state.moveIn,
@@ -279,6 +282,7 @@ function stateFromPreferences(preferences: SearchPreferences): OnboardingState {
     ...initialState,
     username: preferences.username,
     campus: preferences.campusName,
+    campusSlug: preferences.campusSlug,
     budgetMin: preferences.budgetMin,
     budgetMax: preferences.budgetMax,
     moveIn: preferences.moveIn,
@@ -316,7 +320,14 @@ function renderStep(
               placeholder="choose a username"
               onChangeText={(value) => update('username', value)}
             />
-            <LockedCampusCard />
+            <SchoolPicker
+              value={state.campusSlug}
+              onChange={(slug) => {
+                const school = getSchool(slug);
+                update('campusSlug', school.slug);
+                update('campus', school.shortName);
+              }}
+            />
           </View>
         </View>
       );
@@ -382,6 +393,7 @@ function renderStep(
       return (
         <CampusRadiusStage
           miles={state.distanceMiles}
+          campusLabel={getSchool(state.campusSlug).shortName}
           onChange={(value) => update('distanceMiles', value)}
         />
       );
@@ -440,7 +452,13 @@ function LargeInput({
   );
 }
 
-function LockedCampusCard() {
+function SchoolPicker({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (slug: string) => void;
+}) {
   const theme = useTheme();
 
   return (
@@ -448,16 +466,41 @@ function LockedCampusCard() {
       <ThemedText type="label" themeColor="textTertiary">
         Campus
       </ThemedText>
-      <View
-        style={[
-          styles.largeInput,
-          styles.campusLocked,
-          { borderColor: theme.border, backgroundColor: theme.backgroundElement },
-        ]}>
-        <ThemedText style={[styles.campusLockedValue, { color: theme.text }]}>UCLA</ThemedText>
+      <View style={styles.schoolGrid}>
+        {SCHOOLS.map((school) => {
+          const selected = school.slug === value;
+
+          return (
+            <Pressable
+              key={school.slug}
+              accessibilityRole="button"
+              accessibilityState={{ selected }}
+              accessibilityLabel={school.name}
+              onPress={() => onChange(school.slug)}
+              style={({ pressed }) => [
+                styles.schoolChip,
+                {
+                  backgroundColor: selected ? school.accent : theme.surface,
+                  borderColor: selected ? school.accent : theme.border,
+                  opacity: pressed ? 0.85 : 1,
+                  shadowColor: theme.shadow,
+                },
+              ]}>
+              <ThemedText type="smallBold" style={{ color: selected ? '#FFFFFF' : theme.text }}>
+                {school.shortName}
+              </ThemedText>
+              <ThemedText
+                type="caption"
+                numberOfLines={1}
+                style={{ color: selected ? 'rgba(255, 255, 255, 0.82)' : theme.textSecondary }}>
+                {school.name}
+              </ThemedText>
+            </Pressable>
+          );
+        })}
       </View>
       <ThemedText type="caption" themeColor="textSecondary">
-        More campuses coming soon.
+        Listings and the app accent follow your campus.
       </ThemedText>
     </View>
   );
@@ -533,6 +576,7 @@ function OptionRow({
 }
 
 function ReviewStage({ state }: { state: OnboardingState }) {
+  const school = getSchool(state.campusSlug);
   const groupLabel =
     state.groupMode === 'create'
       ? 'New group'
@@ -552,14 +596,15 @@ function ReviewStage({ state }: { state: OnboardingState }) {
         <View style={styles.reviewHeroCopy}>
           <ThemedText type="subtitle">@{state.username || 'username'}</ThemedText>
           <ThemedText type="small" themeColor="textSecondary">
-            UCLA apartment deck
+            {school.shortName} apartment deck
           </ThemedText>
         </View>
       </View>
       <View style={styles.reviewList}>
+        <ReviewItem label="Campus" value={school.shortName} />
         <ReviewItem label="Group" value={groupLabel} />
         <ReviewItem label="Budget" value={formatBudgetRange(state.budgetMin, state.budgetMax)} />
-        <ReviewItem label="Radius" value={`${formatMiles(state.distanceMiles)} mi from UCLA`} />
+        <ReviewItem label="Radius" value={`${formatMiles(state.distanceMiles)} mi from ${school.shortName}`} />
         <ReviewItem label="Move-in" value={`${state.moveIn} 2026`} />
         <ReviewItem label="Room" value={`${formatBedrooms(state.bedrooms)}, ${state.bathrooms} bath`} />
       </View>
@@ -724,17 +769,22 @@ const styles = StyleSheet.create({
     lineHeight: 31,
     fontWeight: '700',
   },
-  campusLocked: {
+  schoolGrid: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    paddingVertical: Spacing.two,
+    flexWrap: 'wrap',
+    gap: Spacing.two,
   },
-  campusLockedValue: {
-    fontFamily: Fonts.display,
-    fontSize: 24,
-    lineHeight: 31,
-    fontWeight: '700',
+  schoolChip: {
+    flexGrow: 1,
+    flexBasis: '47%',
+    minHeight: 60,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+    justifyContent: 'center',
+    gap: 2,
+    ...Shadows.soft,
   },
   optionStack: {
     gap: Spacing.two,

@@ -96,6 +96,10 @@ export const Colors = {
 
 export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
 
+// The resolved palette `useTheme()` returns. Values are widened to `string`
+// because the active primary accent is computed at runtime (see `@/lib/schools`).
+export type HiveTheme = Record<ThemeColor, string>;
+
 export const Fonts = Platform.select({
   ios: {
     sans: 'Avenir Next',

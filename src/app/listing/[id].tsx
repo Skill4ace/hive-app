@@ -329,7 +329,7 @@ export default function ListingDetailScreen() {
             themeColor="textSecondary"
             numberOfLines={overviewExpanded ? undefined : 5}>
             {detail.property.description ??
-              'A campus-ready listing with real availability, source photos, and commute context from the current UCLA dataset.'}
+              'A campus-ready listing with real availability, source photos, and commute context from the current campus dataset.'}
           </ThemedText>
           <Pressable
             accessibilityRole="button"

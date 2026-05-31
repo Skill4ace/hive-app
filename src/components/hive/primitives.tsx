@@ -5,11 +5,10 @@ import { Modal, Pressable, ScrollView, StyleSheet, TextInput, View, type ViewSty
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
-import { Colors, Fonts, Radius, Shadows, Spacing, type ThemeColor } from '@/constants/theme';
+import { Fonts, type HiveTheme, Radius, Shadows, Spacing, type ThemeColor } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 type SymbolName = ComponentProps<typeof SymbolView>['name'];
-type HiveTheme = (typeof Colors)[keyof typeof Colors];
 
 export function hiveSymbol(name: SymbolName) {
   return name;

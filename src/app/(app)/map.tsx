@@ -11,22 +11,22 @@ import { Fonts, Radius, Shadows, Spacing } from '@/constants/theme';
 import { searchListings } from '@/data/real-listings';
 import { useRealListings } from '@/hooks/use-real-listings';
 import { useTheme } from '@/hooks/use-theme';
+import { getSchool, useActiveCampusSlug } from '@/lib/schools';
 
-const UCLA_REGION: Region = {
-  latitude: 34.0667,
-  longitude: -118.4467,
-  latitudeDelta: 0.033,
-  longitudeDelta: 0.027,
-};
-
-const UCLA_COORDINATE = {
-  latitude: 34.0689,
-  longitude: -118.4452,
-};
+const CAMPUS_DELTA = { latitudeDelta: 0.033, longitudeDelta: 0.027 };
 
 export default function MapScreen() {
   const router = useRouter();
   const theme = useTheme();
+  const campus = getSchool(useActiveCampusSlug());
+  const campusCoordinate = useMemo(
+    () => ({ latitude: campus.latitude, longitude: campus.longitude }),
+    [campus.latitude, campus.longitude],
+  );
+  const campusRegion: Region = useMemo(
+    () => ({ ...campusCoordinate, ...CAMPUS_DELTA }),
+    [campusCoordinate],
+  );
   const { data: listings, loading, error, refresh } = useRealListings();
   const params = useLocalSearchParams<{ selected?: string }>();
   const searchInputRef = useRef<TextInput>(null);
@@ -92,7 +92,7 @@ export default function MapScreen() {
           <View style={[styles.mapShell, { backgroundColor: theme.surface, borderColor: theme.border, shadowColor: theme.shadow }]}>
             <MapView
               style={StyleSheet.absoluteFill}
-              initialRegion={UCLA_REGION}
+              initialRegion={campusRegion}
               loadingEnabled
               loadingBackgroundColor={theme.backgroundElement}
               showsBuildings
@@ -100,7 +100,7 @@ export default function MapScreen() {
               showsPointsOfInterests
               legalLabelInsets={{ bottom: 10, left: 10, right: 10, top: 10 }}
               onPress={() => setSelectedId(null)}>
-              <Marker coordinate={UCLA_COORDINATE} anchor={{ x: 0.5, y: 0.5 }} stopPropagation>
+              <Marker coordinate={campusCoordinate} anchor={{ x: 0.5, y: 0.5 }} stopPropagation>
                 <View style={styles.campusMarker}>
                   <View style={[styles.campusDot, { backgroundColor: theme.primary, shadowColor: theme.shadow }]}>
                     <IconGlyph
