@@ -3,7 +3,7 @@
     "name": "Hive",
     "slug": "hive-official",
     "description": "Collaborative apartment hunting for college students near campus.",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/hivelogoappicon.png",
     "scheme": "hiveofficial",
