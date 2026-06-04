@@ -270,14 +270,8 @@ function persistHiveState(payload: PersistedHiveState) {
   return Storage.setItem(STORAGE_KEY, JSON.stringify(payload));
 }
 
-// Older builds seeded the username with a placeholder name. Treat that legacy
-// value as empty so existing installs start with a blank username field.
-const LEGACY_SEED_USERNAMES = new Set(['rey']);
-
 function normalizeUsername(value?: string) {
-  const trimmed = (value ?? '').trim();
-  if (LEGACY_SEED_USERNAMES.has(trimmed.toLowerCase())) return '';
-  return trimmed;
+  return (value ?? '').trim();
 }
 
 function normalizeCampusSlug(value?: string) {
