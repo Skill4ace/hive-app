@@ -171,7 +171,7 @@ export default function OnboardingScreen() {
           await joinGroup(state.groupCode, nextPreferences);
         }
 
-        updatePreferences(nextPreferences);
+        await updatePreferences(nextPreferences);
         router.replace('/discover');
       } catch (error) {
         if (state.groupMode === 'join') {

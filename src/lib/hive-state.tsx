@@ -49,7 +49,7 @@ type HiveAppStateContextValue = PersistedHiveState & {
   hydrated: boolean;
   likedIds: string[];
   passedIds: string[];
-  updatePreferences: (next: Partial<SearchPreferences>) => void;
+  updatePreferences: (next: Partial<SearchPreferences>) => Promise<void>;
   recordDecision: (listingId: string, decision: ListingDecision, score?: number) => void;
   clearDecision: (listingId: string) => void;
   undoDecision: () => void;
@@ -125,19 +125,26 @@ export function HiveAppStateProvider({ children }: { children: ReactNode }) {
       history,
     };
 
-    Storage.setItem(STORAGE_KEY, JSON.stringify(payload)).catch((error) => {
+    persistHiveState(payload).catch((error) => {
       console.warn('Unable to save Hive local state', error);
     });
   }, [decisions, history, hydrated, preferences]);
 
-  const updatePreferences = useCallback((next: Partial<SearchPreferences>) => {
-    setPreferences((current) => ({
-      ...current,
+  const updatePreferences = useCallback(async (next: Partial<SearchPreferences>) => {
+    const nextPreferences = {
+      ...preferences,
       ...next,
-      campusSlug: next.campusSlug ?? current.campusSlug,
-      campusName: next.campusName ?? current.campusName,
-    }));
-  }, []);
+      campusSlug: next.campusSlug ?? preferences.campusSlug,
+      campusName: next.campusName ?? preferences.campusName,
+    };
+
+    setPreferences(nextPreferences);
+    await persistHiveState({
+      preferences: nextPreferences,
+      decisions,
+      history,
+    });
+  }, [decisions, history, preferences]);
 
   const recordDecision = useCallback((listingId: string, decision: ListingDecision, score?: number) => {
     const decidedAt = new Date().toISOString();
@@ -257,6 +264,10 @@ function normalizePersistedState(value: Partial<PersistedHiveState> | null): Per
     decisions: value.decisions && typeof value.decisions === 'object' ? value.decisions : {},
     history: Array.isArray(value.history) ? value.history.slice(0, HISTORY_LIMIT) : [],
   };
+}
+
+function persistHiveState(payload: PersistedHiveState) {
+  return Storage.setItem(STORAGE_KEY, JSON.stringify(payload));
 }
 
 // Older builds seeded the username with a placeholder name. Treat that legacy

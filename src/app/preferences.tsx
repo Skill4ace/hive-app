@@ -54,8 +54,10 @@ export default function PreferencesScreen() {
   const title = section === 'search' ? 'Your filters' : section === 'room' ? 'Listing shape' : 'Preferences';
 
   const save = () => {
-    updatePreferences(draft);
-    router.back();
+    void (async () => {
+      await updatePreferences(draft);
+      router.back();
+    })();
   };
 
   return (
